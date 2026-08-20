@@ -2,6 +2,7 @@
 #include <cmath>
 #include <cstring>
 #include <cstdlib>
+#include <cstdio>
 #include <algorithm>
 #include <vector>
 #include <pybind11/functional.h>
@@ -311,6 +312,8 @@ Buffer::intranode_dispatch(const at::Tensor &x, const std::optional<at::Tensor> 
     int expert_token_nums_type = get_value_from_env("MOE_EXPERT_TOKEN_NUMS_TYPE", 1);
     EP_HOST_ASSERT(expert_token_nums_type == 1 or expert_token_nums_type == 0);
 
+    fprintf(stderr, "[deep_ep][intra_dispatch][rank=%ld] P0: before aclnnNotifyDispatch\n", (long)rank);
+    fflush(stderr);
     EXEC_NPU_CMD(aclnnNotifyDispatch, send_data, new_num_tokens_per_expert, send_count, num_tokens,
                  hcom_ep_name,  // commGroup
                  num_ranks,     // rankSize
@@ -318,6 +321,8 @@ Buffer::intranode_dispatch(const at::Tensor &x, const std::optional<at::Tensor> 
                  local_rank_size, local_rank_id, round, per_round_tokens, send_data_offset, recv_data, recv_count,
                  recv_offset, expert_global_offset, srcrank_in_expert_offset, r_in_srcrank_offset, total_recv_token,
                  max_bs, recv_tokens_per_expert);
+    fprintf(stderr, "[deep_ep][intra_dispatch][rank=%ld] P1: after aclnnNotifyDispatch, before max_bs.item()\n", (long)rank);
+    fflush(stderr);
     auto send_token_idx_small = this->send_token_idx_small;
     real_max_bs = static_cast<int64_t>(std::max(max_bs.item<int>(), static_cast<int>(num_worst_tokens)));
 
@@ -325,6 +330,9 @@ Buffer::intranode_dispatch(const at::Tensor &x, const std::optional<at::Tensor> 
     int64_t global_bs = static_cast<int64_t>(std::min(static_cast<int64_t>(per_round_tokens), real_max_bs) * num_ranks);
 
     int64_t trt = total_recv_token.item<int>();
+    fprintf(stderr, "[deep_ep][intra_dispatch][rank=%ld] P2: after total_recv_token.item() (NotifyDispatch done), trt=%ld\n",
+            (long)rank, (long)trt);
+    fflush(stderr);
     int num_recv_tokens = (trt == 0) ? 1 : trt;
     is_mxfp8_quant = use_quant && (quant_type == "mx_fp8_e4m3" || quant_type == "mx_fp8_e5m2");
     bool is_mxfp4_quant = use_quant && (quant_type == "mx_fp4_e2m1");
@@ -372,14 +380,22 @@ Buffer::intranode_dispatch(const at::Tensor &x, const std::optional<at::Tensor> 
         recv_topk_idx = at::empty({trt, num_topk}, topk_idx->options());
         recv_topk_weights = at::empty({trt, num_topk}, topk_weights->options());
     }
+    fprintf(stderr, "[deep_ep][intra_dispatch][rank=%ld] P3: before aclnnCamMoeDispatchNormal\n", (long)rank);
+    fflush(stderr);
     EXEC_NPU_CMD(aclnnCamMoeDispatchNormal, new_x, expert_ids, send_data_offset, send_token_idx_small, recv_offset,
                  recv_count, expert_global_offset, srcrank_in_expert_offset, r_in_srcrank_offset, hcom_ep_name,
                  num_ranks,  // rankSize
                  rank,       // rankId
                  hcom_ep_name, tp_size, tp_rank, num_experts, quant_mode, real_max_bs, global_bs, round,
                  per_round_tokens, expandx_out, dynamic_scales_out, expand_idx_out, dispatch_wait_recv_cost_stats_out);
+    fprintf(stderr,
+            "[deep_ep][intra_dispatch][rank=%ld] P4: after aclnnCamMoeDispatchNormal, before recv_token_per_exp.to(cpu)\n",
+            (long)rank);
+    fflush(stderr);
     auto recv_token_per_exp_cpu = recv_tokens_per_expert.to(at::kCPU);
     auto recv_token_per_exp_ptr = recv_token_per_exp_cpu.data_ptr<int32_t>();
+    fprintf(stderr, "[deep_ep][intra_dispatch][rank=%ld] P5: after recv_token_per_exp.to(cpu) (CamMoe done)\n", (long)rank);
+    fflush(stderr);
 
     int token_cnt = 0;
     // 多轮处理为一维
