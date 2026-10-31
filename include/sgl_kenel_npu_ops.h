@@ -343,7 +343,8 @@ chunk_kda_fwd(const at::Tensor &q, const at::Tensor &k, const at::Tensor &v,
               bool stateVFirst, bool outputFinalState, bool outputGk,
               bool outputW, bool outputU, bool outputQG, bool outputKg,
               bool outputVNew, bool outputH);
-#ifdef SGL_KERNEL_ENABLE_A3_ONLY_OPS
+#if defined(SGL_KERNEL_ENABLE_A3_ONLY_OPS) ||                                  \
+    defined(SGL_KERNEL_ENABLE_A5_ONLY_OPS)
 /**
  * @brief Sparse row copy: for each i where valid_mask[i] is true,
  *   dst[dst_index[i]] = src[src_index[i]]
@@ -360,6 +361,24 @@ void unidex_copy(const at::Tensor &src, at::Tensor &dst,
                  c10::optional<int64_t> dst_ptr);
 
 /**
+ * @brief Create host shared memory and register it to the NPU device.
+ *
+ * Returns:
+ *   host pointer as int64_t
+ *   device-visible pointer as int64_t
+ */
+std::tuple<int64_t, int64_t>
+shm_allocator_create_and_register(int64_t size, int64_t device_id,
+                                  c10::string_view name);
+
+/**
+ * @brief Unregister and free all shared-memory entries for one device.
+ */
+void shm_allocator_free_all(int64_t device_id);
+#endif
+
+#ifdef SGL_KERNEL_ENABLE_A3_ONLY_OPS
+/**
  * @brief Look up slot_map[req_indices[b], topk_indices[b, k]] for each query.
  *
  * Replaces the broadcast + eq + any + argmax pattern used for device cache
@@ -375,22 +394,6 @@ void slot_map_lookup(const at::Tensor &slot_map, const at::Tensor &req_indices,
                      const at::Tensor &topk_indices,
                      at::Tensor &token_on_device, at::Tensor &device_token_pos,
                      int64_t block_dim);
-
-/**
- * @brief Create host shared memory and register it to the NPU device.
- *
- * Returns:
- *   host pointer as int64_t
- *   device-visible pointer as int64_t
- */
-std::tuple<int64_t, int64_t>
-shm_allocator_create_and_register(int64_t size, int64_t device_id,
-                                  c10::string_view name);
-
-/**
- * @brief Unregister and free all shared-memory entries for one device.
- */
-void shm_allocator_free_all(int64_t device_id);
 #endif
 
 } // namespace npu_kernel

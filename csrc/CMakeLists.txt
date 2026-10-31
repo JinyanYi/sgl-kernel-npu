@@ -85,6 +85,10 @@ set(OP_SRCS
     ${PROJECT_OP_SRC_BASE}/sparse_attention_score/op_host/tiling/sparse_attention_score_tiling.cpp
     ${PROJECT_OP_SRC_BASE}/chunk_gated_delta_rule/op_host/chunk_gated_delta_rule.cpp
     ${PROJECT_OP_SRC_BASE}/chunk_kda_fwd/op_host/chunk_kda_fwd.cpp
+    # Shared by the A3 and A5 sparse-KV paths.
+    ${PROJECT_OP_SRC_BASE}/sparsity_driven_kv_offload/unidex_copy/op_host/unidex_copy.cpp
+    ${PROJECT_OP_SRC_BASE}/sparsity_driven_kv_offload/shm_allocator/shm_allocator.cpp
+    ${PROJECT_OP_SRC_BASE}/sparsity_driven_kv_offload/shm_allocator/shm_allocator_op.cpp
     )
 # A3-only host sources
 if(SGL_KERNEL_ENABLE_A3_ONLY_OPS)
@@ -99,10 +103,7 @@ if(SGL_KERNEL_ENABLE_A3_ONLY_OPS)
         ${PROJECT_OP_SRC_BASE}/sparse_attn_sharedkv/op_host/sparse_attn_sharedkv_tiling.cpp
         ${PROJECT_OP_SRC_BASE}/tri_inv/op_host/tri_inv.cpp
         ${PROJECT_OP_SRC_BASE}/mega_chunk_gdn/op_host/mega_chunk_gdn.cpp
-        ${PROJECT_OP_SRC_BASE}/sparsity_driven_kv_offload/unidex_copy/op_host/unidex_copy.cpp
         ${PROJECT_OP_SRC_BASE}/sparsity_driven_kv_offload/slot_map_lookup/op_host/slot_map_lookup.cpp
-        ${PROJECT_OP_SRC_BASE}/sparsity_driven_kv_offload/shm_allocator/shm_allocator.cpp
-        ${PROJECT_OP_SRC_BASE}/sparsity_driven_kv_offload/shm_allocator/shm_allocator_op.cpp
         ${PROJECT_OP_SRC_BASE}/sparsity_driven_kv_offload/cache_planner/op_host/cache_planner.cpp
         ${PROJECT_OP_SRC_BASE}/fused_scatter_copy_sparse_flash_attention/op_host/fused_copy_sfa.cpp
     )
@@ -145,6 +146,7 @@ set(NO_WORKSPACE_KERNEL_SRCS
     ${PROJECT_OP_SRC_BASE}/lora/op_kernel/sgemmv_shrink_kernel.cpp
     ${PROJECT_OP_SRC_BASE}/apply_token_bitmask/op_kernel/apply_token_bitmask.cpp
     ${PROJECT_OP_SRC_BASE}/recurrent_gated_delta_rule/op_kernel/recurrent_gated_delta_rule_kernel.cpp
+    ${PROJECT_OP_SRC_BASE}/sparsity_driven_kv_offload/unidex_copy/op_kernel/unidex_copy_kernel.cpp
 )
 # A5-only no-workspace kernels
 if(SGL_KERNEL_ENABLE_A5_ONLY_OPS)
@@ -157,7 +159,6 @@ if(SGL_KERNEL_ENABLE_A3_ONLY_OPS)
     list(APPEND NO_WORKSPACE_KERNEL_SRCS
         ${PROJECT_OP_SRC_BASE}/batch_matmul_transpose/op_kernel/batch_matmul_transpose_kernel.cpp
         ${PROJECT_OP_SRC_BASE}/tri_inv/op_kernel/tri_inv_kernel.cpp
-        ${PROJECT_OP_SRC_BASE}/sparsity_driven_kv_offload/unidex_copy/op_kernel/unidex_copy_kernel.cpp
         ${PROJECT_OP_SRC_BASE}/sparsity_driven_kv_offload/slot_map_lookup/op_kernel/slot_map_lookup_kernel.cpp
         ${PROJECT_OP_SRC_BASE}/sparsity_driven_kv_offload/cache_planner/op_kernel/cache_planner_kernel.cpp
     )
@@ -390,11 +391,44 @@ ascendc_compile_options(sparse_flash_attention_kernel PRIVATE
     "SHELL:-mllvm -cce-aicore-hoist-movemask=false"
 )
 
+# C8 CopySFA is A5-only. Keep its normal-wheel registration and kernel target
+# independent of the A5 LIM implementation so either operator can be built and
+# tested without linking the other one.
+set(A5_COPY_SFA_KERNEL_TARGETS)
+if(SGL_KERNEL_ENABLE_A5_ONLY_OPS)
+    list(APPEND OP_SRCS
+        ${PROJECT_OP_SRC_BASE}/a5_copy_sfa_registration.cpp
+        ${PROJECT_OP_SRC_BASE}/fused_quant_scatter_copy_sparse_flash_attention/op_host/fused_quant_copy_sfa.cpp
+    )
+    ascendc_library(fused_quant_scatter_copy_sparse_flash_attention_a5_kernel STATIC
+        ${PROJECT_OP_SRC_BASE}/fused_quant_scatter_copy_sparse_flash_attention/op_kernel/fused_quant_scatter_copy_sparse_flash_attention.cpp
+    )
+    ascendc_include_directories(fused_quant_scatter_copy_sparse_flash_attention_a5_kernel PRIVATE
+        ${PROJECT_OP_SRC_BASE}/fused_quant_scatter_copy_sparse_flash_attention/op_kernel
+        ${PROJECT_OP_SRC_BASE}/fused_quant_scatter_copy_sparse_flash_attention/op_kernel/arch35
+        ${PROJECT_OP_SRC_BASE}/utils/kernel
+    )
+    ascendc_compile_definitions(fused_quant_scatter_copy_sparse_flash_attention_a5_kernel PRIVATE
+        -DHAVE_WORKSPACE
+        -DHAVE_TILING
+    )
+    ascendc_compile_options(fused_quant_scatter_copy_sparse_flash_attention_a5_kernel PRIVATE
+        --cce-auto-sync=off
+        -Wno-deprecated-declarations
+        "SHELL:-mllvm -cce-vf-remove-membar=false"
+        "SHELL:-mllvm -cce-aicore-hoist-movemask=false"
+    )
+    list(APPEND A5_COPY_SFA_KERNEL_TARGETS
+        fused_quant_scatter_copy_sparse_flash_attention_a5_kernel
+    )
+endif()
+
 # create shared library
 add_library(${OP_PLUGIN_NAME} SHARED ${OP_SRCS})
 
 target_link_libraries(${OP_PLUGIN_NAME} PRIVATE
         ${A3_ONLY_KERNEL_TARGETS}
+        ${A5_COPY_SFA_KERNEL_TARGETS}
         sparse_flash_attention_kernel
         workspace_kernel
         no_workspace_kernel
