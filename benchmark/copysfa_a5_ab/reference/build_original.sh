@@ -46,6 +46,13 @@ fi
 source "$ascend_env"
 set -u
 : "${ASCEND_HOME_PATH:?Ascend setup did not set ASCEND_HOME_PATH}"
+python_bin="${PYTHON_BIN:-python3}"
+python_bin=$("$python_bin" -c 'import sys; print(sys.executable)')
+# CANN's own build helpers also call python3; keep their interpreter aligned.
+python_dir=$(dirname -- "$python_bin")
+[[ -x "$python_dir/python3" ]] || { echo "Selected Python lacks a sibling python3: $python_bin" >&2; exit 2; }
+export PATH="$python_dir:$PATH"
+"$python_bin" -c 'import torch, torch_npu'
 mkdir -- "$output"
 exec > >(tee "$output/build.log") 2>&1
 finish() {
@@ -58,6 +65,7 @@ finish() {
 trap finish EXIT
 printf 'Started %s\n' "$(date -u +%FT%TZ)"
 printf 'Ascend setup: %s\n' "$ascend_env"
+printf 'Python interpreter: %s\n' "$python_bin"
 printf 'Output root: %s\n' "$output"
 source_revision=unknown
 if [[ -n "$source_arg" ]]; then
@@ -75,8 +83,8 @@ if [[ -n "$source_arg" ]]; then
         cp -- "$(dirname -- "$donor")/SOURCE_MANIFEST.json" "$output/prepared/SOURCE_MANIFEST.json"
     fi
 else
-    python3 "$script_dir/prepare_original.py" --output-root "$output/prepared" --operator copysfa
-    source_revision=$(python3 -c 'import json, re, sys; m=json.load(open(sys.argv[1], encoding="utf-8")); r=m["upstream"]["revision"]; assert m["operator"] == "copysfa" and re.fullmatch(r"[0-9a-f]{40}", r); print(r)' "$output/prepared/SOURCE_MANIFEST.json")
+    "$python_bin" "$script_dir/prepare_original.py" --output-root "$output/prepared" --operator copysfa
+    source_revision=$("$python_bin" -c 'import json, re, sys; m=json.load(open(sys.argv[1], encoding="utf-8")); r=m["upstream"]["revision"]; assert m["operator"] == "copysfa" and re.fullmatch(r"[0-9a-f]{40}", r); print(r)' "$output/prepared/SOURCE_MANIFEST.json")
 fi
 source_root="$output/prepared/source"
 csrc="$source_root/csrc"
@@ -110,7 +118,7 @@ binding_args=(--source-root "$source_root" --build-dir "$output/binding")
 if [[ -f "$output/prepared/SOURCE_MANIFEST.json" ]]; then
     binding_args+=(--source-manifest "$output/prepared/SOURCE_MANIFEST.json")
 fi
-python3 "$script_dir/build_original_binding.py" "${binding_args[@]}"
+"$python_bin" "$script_dir/build_original_binding.py" "${binding_args[@]}"
 shopt -s nullglob
 bindings=("$output"/binding/a5_original_copysfa_binding*.so)
 shopt -u nullglob
