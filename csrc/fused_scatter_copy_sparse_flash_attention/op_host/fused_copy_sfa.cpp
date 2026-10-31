@@ -57,8 +57,11 @@ void fused_scatter_copy_sparse_flash_attention(
     const at::Tensor &num_cache_tokens, const at::Tensor &topk_src_ids, const at::Tensor &topk_dst_slots,
     const at::Tensor &topk_miss_counts, const at::Tensor &miss_src_ids, const at::Tensor &miss_dst_slots,
     const at::Tensor &miss_counts, const at::Tensor &hbm_block_table, const at::Tensor &dram_block_table,
-    int64_t dram_kv_dev_ptr, at::Tensor &attention_out, double scale_value, bool full_visible)
+    int64_t dram_kv_dev_ptr, at::Tensor &attention_out, double scale_value, bool full_visible,
+    bool resident_refresh_tail)
 {
+    TORCH_CHECK(!resident_refresh_tail || full_visible,
+                "resident_refresh_tail requires full_visible=True and a native LIM suffix plan");
     TORCH_CHECK(query.scalar_type() == at::kHalf || query.scalar_type() == at::kBFloat16,
                 "query must be float16 or bfloat16");
     TORCH_CHECK(query.device().type() == DEVICE_TYPE, "query must be an NPU tensor");
@@ -168,6 +171,7 @@ void fused_scatter_copy_sparse_flash_attention(
                 "unexpected SFA tiling prefix size");
     sfaData.SaveToBuffer(reinterpret_cast<uint8_t *>(&fusedTilingData), sizeof(SparseFlashAttentionTilingDataMla));
     fusedTilingData.fullVisible = full_visible ? 1U : 0U;
+    fusedTilingData.residentRefreshTail = resident_refresh_tail ? 1U : 0U;
     fusedTilingData.copyCap = static_cast<uint32_t>(topk_src_ids.size(2));
     fusedTilingData.missCap = static_cast<uint32_t>(miss_src_ids.size(1));
     fusedTilingData.hbmMaxBlockNum = static_cast<uint32_t>(hbm_block_table.size(1));

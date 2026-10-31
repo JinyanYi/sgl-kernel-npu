@@ -30,9 +30,11 @@ public:
 
     __aicore__ inline void Init(GM_ADDR hbmKRoPE, GM_ADDR hbmKvCache, GM_ADDR dramKRoPE, GM_ADDR dramKvCache,
                                 GM_ADDR hbmBlockTable, GM_ADDR dramBlockTable, GM_ADDR srcTokenIds, GM_ADDR dstSlots,
-                                GM_ADDR copyCounts)
+                                GM_ADDR copyCounts, GM_ADDR qEnds, bool refreshOnly)
     {
         blockIdx_ = GetBlockIdx();
+        refreshOnly_ = refreshOnly;
+        qEndsGm_.SetGlobalBuffer((__gm__ int32_t *)qEnds);
         batchSize_ = tiling_->baseParams.batchSize;
         copyCap_ = tiling_->missCap;
         totalPairSlots_ = static_cast<int64_t>(batchSize_) * copyCap_;
@@ -125,9 +127,24 @@ private:
             int32_t copyIdx = static_cast<int32_t>(flatPairIdx - batchIdx * copyCap_);
             if (batchIdx != cachedBatchIdx_) {
                 cachedCopyCount_ = copyCountsGm_.GetValue(batchIdx);
+                cachedCopyStart_ = 0;
+                if (refreshOnly_) {
+                    // Native LIM appends at most Q rewritten-resident pairs.
+                    // Refreshing the last Q pairs covers that suffix; any extra
+                    // ordinary misses are harmlessly copied again by attention.
+                    const int32_t qEnd = qEndsGm_.GetValue(batchIdx);
+                    const int32_t qStart = batchIdx == 0 ? 0 : qEndsGm_.GetValue(batchIdx - 1);
+                    const int32_t qCount = qEnd - qStart;
+                    ASSERT_MSG(qCount >= 0 && qCount <= 16, "invalid query count for resident refresh");
+                    cachedCopyStart_ = cachedCopyCount_ > qCount ? cachedCopyCount_ - qCount : 0;
+                }
                 ASSERT_MSG(cachedCopyCount_ >= 0 && cachedCopyCount_ <= copyCap_,
                            "copy_count exceeds the SCATTER input capacity.");
                 cachedBatchIdx_ = batchIdx;
+            }
+            if (copyIdx < cachedCopyStart_) {
+                flatPairIdx = FirstFlatPairAtOrAfter(batchIdx * copyCap_ + cachedCopyStart_);
+                continue;
             }
             if (copyIdx < cachedCopyCount_) {
                 return flatPairIdx;
@@ -221,6 +238,9 @@ private:
     int32_t kRopeUbOffset_ = 0;
     int64_t cachedBatchIdx_ = -1;
     int32_t cachedCopyCount_ = 0;
+    int32_t cachedCopyStart_ = 0;
+    bool refreshOnly_ = false;
+    GlobalTensor<int32_t> qEndsGm_;
 
     GlobalTensor<T> hbmKRoPEGm_;
     GlobalTensor<T> hbmKvCacheGm_;

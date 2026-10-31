@@ -346,8 +346,9 @@ def test_lim_q4_steady_hits_include_rewritten_residents():
     torch.testing.assert_close(resident[slots.long()], sources, rtol=0, atol=0)
 
 
+@pytest.mark.parametrize("refresh_tail", [False, True])
 @pytest.mark.parametrize("graph", [False, True])
-def test_copy_sfa_full_visible_refreshes_resident_hit(graph):
+def test_copy_sfa_full_visible_refreshes_resident_hit(graph, refresh_tail):
     case = _DynamicTndCase(
         query_counts=[ROUTES],
         heads=8,
@@ -377,6 +378,7 @@ def test_copy_sfa_full_visible_refreshes_resident_hit(graph):
                 case.output,
                 case.scale,
                 full_visible=True,
+                resident_refresh_tail=refresh_tail,
             )
 
         run()
@@ -423,7 +425,8 @@ def test_copy_sfa_full_visible_refreshes_resident_hit(graph):
         case.close()
 
 
-def test_copy_sfa_q4_c12288_exact_k_no_tail():
+@pytest.mark.parametrize("refresh_tail", [False, True])
+def test_copy_sfa_q4_c12288_exact_k_no_tail(refresh_tail):
     case = _DynamicTndCase(
         query_counts=[ROUTES], heads=8, cache_budgets=[CAPACITY], tail_tokens=4
     )
@@ -453,6 +456,7 @@ def test_copy_sfa_q4_c12288_exact_k_no_tail():
             case.output,
             case.scale,
             full_visible=True,
+            resident_refresh_tail=refresh_tail,
         )
         torch.npu.synchronize()
         error = case.output.cpu().float() - expected
@@ -491,6 +495,7 @@ def test_copy_sfa_q4_c12288_exact_k_no_tail():
                 case.output,
                 case.scale,
                 full_visible=True,
+                resident_refresh_tail=refresh_tail,
             )
         case.actual_kv.zero_()
         case.output.fill_(123)

@@ -41,28 +41,30 @@ using FusedScatterCopySparseFlashAttentionTilingDataMla = FusedCopySfaTilingData
 using namespace AscendC;
 namespace {
 template <typename T, bool COMBINED_LAYOUT = false>
-__aicore__ inline void
-RunFirstFillScatterCopy(__gm__ uint8_t *hbmKeyRope, __gm__ uint8_t *hbmKvCache, __gm__ uint8_t *dramKeyRope,
-                        __gm__ uint8_t *dramKvCache, __gm__ uint8_t *hbmBlockTable, __gm__ uint8_t *dramBlockTable,
-                        __gm__ uint8_t *missSourceIds, __gm__ uint8_t *missDstSlots, __gm__ uint8_t *missCounts,
-                        const __gm__ FusedScatterCopySparseFlashAttentionTilingData *fusedTiling, TPipe *pipe)
+__aicore__ inline void RunFirstFillScatterCopy(__gm__ uint8_t *hbmKeyRope, __gm__ uint8_t *hbmKvCache,
+                                               __gm__ uint8_t *dramKeyRope, __gm__ uint8_t *dramKvCache,
+                                               __gm__ uint8_t *hbmBlockTable, __gm__ uint8_t *dramBlockTable,
+                                               __gm__ uint8_t *missSourceIds, __gm__ uint8_t *missDstSlots,
+                                               __gm__ uint8_t *missCounts, __gm__ uint8_t *qEnds, bool refreshOnly,
+                                               const __gm__ FusedScatterCopySparseFlashAttentionTilingData *fusedTiling,
+                                               TPipe *pipe)
 {
     if ASCEND_IS_AIV {
         FirstFillScatterCopyNs::FirstFillScatterCopyKernel<T, COMBINED_LAYOUT> copy(pipe, fusedTiling);
         copy.Init(hbmKeyRope, hbmKvCache, dramKeyRope, dramKvCache, hbmBlockTable, dramBlockTable, missSourceIds,
-                  missDstSlots, missCounts);
+                  missDstSlots, missCounts, qEnds, refreshOnly);
         copy.Process();
     }
 }
 
-__aicore__ inline bool IsBatchFirstFill(__gm__ uint8_t *cacheTokens, __gm__ uint8_t *missCounts, uint32_t batchSize,
-                                        uint32_t missCap, bool fullVisible)
+__aicore__ inline uint32_t GetBatchCopyMode(__gm__ uint8_t *cacheTokens, __gm__ uint8_t *missCounts, uint32_t batchSize,
+                                            uint32_t missCap, bool fullVisible, bool residentRefreshTail)
 {
     GlobalTensor<int32_t> cacheTokensGm;
     GlobalTensor<int32_t> missCountsGm;
     cacheTokensGm.SetGlobalBuffer((__gm__ int32_t *)cacheTokens, batchSize);
     missCountsGm.SetGlobalBuffer((__gm__ int32_t *)missCounts, batchSize);
-    bool firstFill = false;
+    uint32_t mode = 0;
     for (uint32_t batchIdx = 0; batchIdx < batchSize; ++batchIdx) {
         const int32_t cacheTokenCount = cacheTokensGm.GetValue(batchIdx);
         const int32_t missCount = missCountsGm.GetValue(batchIdx);
@@ -71,11 +73,16 @@ __aicore__ inline bool IsBatchFirstFill(__gm__ uint8_t *cacheTokens, __gm__ uint
                    "miss_count exceeds the request-level input capacity.");
         // Padding rows have both counts set to zero. They must not select the
         // batch-wide first-fill path for otherwise steady requests.
-        if (cacheTokenCount > 0 && (missCount >= cacheTokenCount || (fullVisible && missCount > 0))) {
-            firstFill = true;
+        if (cacheTokenCount > 0 && missCount >= cacheTokenCount) {
+            return 1;  // Cold fill: all request-level copies precede attention.
+        }
+        if (cacheTokenCount > 0 && fullVisible && missCount > 0) {
+            // Only native LIM producers guarantee the resident-refresh suffix.
+            // Preserve the complete-copy contract for all legacy callers.
+            mode = residentRefreshTail ? 2U : 1U;
         }
     }
-    return firstFill;
+    return mode;
 }
 
 template <typename T, bool SOURCE_AWARE, bool COMBINED_LAYOUT = false>
@@ -125,17 +132,19 @@ extern "C" __global__ __aicore__ void fused_scatter_copy_sparse_flash_attention_
 
     TPipe pipe;
     __gm__ uint8_t *attentionWorkspace = GetUserWorkspace(workspace);
-    const bool firstFill = IsBatchFirstFill(cacheTokens, missCounts, fusedTiling->baseParams.batchSize,
-                                            fusedTiling->missCap, fusedTiling->fullVisible != 0U);
-    if (firstFill) {
+    const uint32_t copyMode =
+        GetBatchCopyMode(cacheTokens, missCounts, fusedTiling->baseParams.batchSize, fusedTiling->missCap,
+                         fusedTiling->fullVisible != 0U, fusedTiling->residentRefreshTail != 0U);
+    const bool firstFill = copyMode == 1;
+    if (copyMode != 0) {
         if (isBf16) {
             RunFirstFillScatterCopy<bfloat16_t, true>(hbmKeyRope, key, dramKeyRope, dramKvCache, hbmBlockTable,
                                                       dramBlockTable, missSourceIds, missDstSlots, missCounts,
-                                                      fusedTiling, &pipe);
+                                                      actualSeqLengthsQuery, copyMode == 2, fusedTiling, &pipe);
         } else {
             RunFirstFillScatterCopy<half, true>(hbmKeyRope, key, dramKeyRope, dramKvCache, hbmBlockTable,
-                                                dramBlockTable, missSourceIds, missDstSlots, missCounts, fusedTiling,
-                                                &pipe);
+                                                dramBlockTable, missSourceIds, missDstSlots, missCounts,
+                                                actualSeqLengthsQuery, copyMode == 2, fusedTiling, &pipe);
         }
         // All MIX kernel tasks must reach the barrier. It establishes the
         // first-fill MTE3-to-Attention MTE2 dependency before either pipeline reads HBM.
