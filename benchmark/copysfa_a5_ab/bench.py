@@ -316,6 +316,43 @@ def main():
                 owner.copy_(fixture["dram"])
                 for key, tensor in common.items():
                     tensor.copy_(fixture[key])
+                # Exercise whole-core scheduling with separate HBM/output
+                # buffers and shared read-only query/DRAM inputs.
+                streams = {name: torch.npu.Stream() for name in buffers}
+                for stream in streams.values():
+                    stream.wait_stream(torch.npu.current_stream())
+                concurrent_graphs = {}
+                if config.graph:
+                    for name, stream in streams.items():
+                        with torch.npu.stream(stream):
+                            reset(name)
+                            call(name)
+                        stream.synchronize()
+                        graph = torch.npu.NPUGraph()
+                        with torch.npu.graph(graph, stream=stream):
+                            call(name)
+                        concurrent_graphs[name] = graph
+                for _ in range(4):
+                    for name, stream in streams.items():
+                        with torch.npu.stream(stream):
+                            reset(name)
+                            if config.graph:
+                                concurrent_graphs[name].replay()
+                            else:
+                                call(name)
+                torch.npu.synchronize()
+                report["multistream_correctness"] = dict(
+                    streams=2,
+                    rounds=4,
+                    graph=config.graph,
+                    **{name: validate(name) for name in buffers},
+                )
+                torch.testing.assert_close(
+                    buffers["port"][1].cpu(),
+                    buffers["original"][1].cpu(),
+                    atol=args.parity_atol,
+                    rtol=args.parity_rtol,
+                )
             report["status"] = "accuracy_passed_timing_pending"
             (args.output / "case.json").write_text(json.dumps(report, indent=2) + "\n")
             samples = {name: [] for name in buffers}

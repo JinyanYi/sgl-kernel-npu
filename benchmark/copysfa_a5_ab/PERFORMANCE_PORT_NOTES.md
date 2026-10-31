@@ -25,6 +25,11 @@ stale-current-KV problem through caller-owned tail storage:
 - The A5 small-miss path retains PR18490's source-aware DRAM gather, owner
   tracking across queries, prefetch during hit work, and deduplicated HBM
   persistence. Those payload files retain their recorded upstream hashes.
+- Native launch explicitly supplies batch scheduling, matching the original
+  OPP's `SetScheduleMode(1)`. CANN's legacy generated stub otherwise uses a
+  null launch configuration and loses an attribute attached to the inline
+  implementation. Only CopySFA's host stub is redirected; the owned-launch
+  submission and Tensor/workspace lifetimes are preserved.
 
 There is an important retained upstream limitation: any request with more
 than 512 unique misses selects the original batch-wide union-copy stage

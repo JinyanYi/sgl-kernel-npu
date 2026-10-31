@@ -89,6 +89,9 @@ padding and shared/random physical DRAM page tables, in eager and graph.
 The functional cases also activate a previously padded request and permute
 physical HBM/DRAM pages while retaining captured Tensor addresses. Both
 backends must consume the updated metadata and preserve the logical result.
+These functional cases also run both backends on two concurrent streams with
+independent HBM/output buffers, including separately captured graphs. This
+checks whole-core batch scheduling around their cross-core synchronization.
 The full default run therefore contains 38 cases.
 
 These are controlled operator inputs, not a model's measured hit distribution

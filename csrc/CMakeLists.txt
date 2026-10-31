@@ -403,6 +403,16 @@ if(SGL_KERNEL_ENABLE_A5_ONLY_OPS)
     ascendc_library(fused_quant_scatter_copy_sparse_flash_attention_a5_kernel STATIC
         ${PROJECT_OP_SRC_BASE}/fused_quant_scatter_copy_sparse_flash_attention/op_kernel/fused_quant_scatter_copy_sparse_flash_attention.cpp
     )
+    # Legacy ascendc_library regenerates device entrypoints and does not retain
+    # __schedmode__ from the inline implementation. Supply the original OPP's
+    # batch scheduling through the public launch config, for this stub only.
+    set(_a5_copy_sfa_stub fused_quant_scatter_copy_sparse_flash_attention_a5_kernel_host_stub_obj)
+    if(NOT TARGET ${_a5_copy_sfa_stub})
+        message(FATAL_ERROR "CopySFA requires the ascendc_library host stub target for explicit batch scheduling")
+    endif()
+    target_compile_definitions(${_a5_copy_sfa_stub} PRIVATE
+        LaunchAscendKernel=LaunchCopySfaBatchKernel
+    )
     ascendc_include_directories(fused_quant_scatter_copy_sparse_flash_attention_a5_kernel PRIVATE
         ${PROJECT_OP_SRC_BASE}/fused_quant_scatter_copy_sparse_flash_attention/op_kernel
         ${PROJECT_OP_SRC_BASE}/fused_quant_scatter_copy_sparse_flash_attention/op_kernel/arch35
