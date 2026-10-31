@@ -1,0 +1,1576 @@
+{
+  "upstream": "vllm-project/vllm-ascend",
+  "revision": "1b180deb840484c2fe33cbdd7abb68a615085172",
+  "archive_sha256": "cf46cded0f3cb65ca419cff0c905641d058b6866f92b43179aa5c713c81f5245",
+  "files": [
+    {
+      "path": "LICENSE",
+      "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"
+    },
+    {
+      "path": "csrc/CMakeLists.txt",
+      "sha256": "7e36018461d658d05f260e8c39137196bc6e2d99c8312e4807d492bb7b42e870"
+    },
+    {
+      "path": "csrc/aclnn_torch_adapter/NPUBridge.cpp",
+      "sha256": "0584211ae839e6b7524887b8c24ca1222d5dff3d7c4609af9548e55f22fd8cf6"
+    },
+    {
+      "path": "csrc/aclnn_torch_adapter/NPUBridge.h",
+      "sha256": "20afcbf147970f6779bbeeddcca3b1701f6b4087aa0b2b05954f5e0dbbbc691d"
+    },
+    {
+      "path": "csrc/aclnn_torch_adapter/NPUStorageImpl.cpp",
+      "sha256": "5adfaa3aff7f88342a6a01aa37104a9d6a9375ea6c93f795fc2d0afa6080a518"
+    },
+    {
+      "path": "csrc/aclnn_torch_adapter/NPUStorageImpl.h",
+      "sha256": "efd9d47443a72074b774f2057923ea15144c76e12fb4f6bed98233fa3e5f30c4"
+    },
+    {
+      "path": "csrc/aclnn_torch_adapter/op_api_common.h",
+      "sha256": "cbd891c9fd8cfb3ad7212f425637772d2da60c21f0db8e106ccd5e5e5f4daac4"
+    },
+    {
+      "path": "csrc/attention/CMakeLists.txt",
+      "sha256": "5b0210b6b70daa3d63801b75bd927d88373a8f90fc90d363c1b09e47a4bf7953"
+    },
+    {
+      "path": "csrc/attention/fused_quant_scatter_copy_sparse_flash_attention/CMakeLists.txt",
+      "sha256": "faffe61ec4c0aff091cd25eb100680a42121d59835cb3e27da361f5231cbb221"
+    },
+    {
+      "path": "csrc/attention/fused_quant_scatter_copy_sparse_flash_attention/README.md",
+      "sha256": "7b5698c685f8bb7ea2fde22db2367b83d03c0405b83f751b16a248a2dbe69632"
+    },
+    {
+      "path": "csrc/attention/fused_quant_scatter_copy_sparse_flash_attention/fused_quant_scatter_copy_sparse_flash_attention_torch_adpt.h",
+      "sha256": "2574035df31a13f5b12c3bd4817c51b57e530ede61146a9ff3419153760ba471"
+    },
+    {
+      "path": "csrc/attention/fused_quant_scatter_copy_sparse_flash_attention/op_host/CMakeLists.txt",
+      "sha256": "c419e33e483e01094de05a764daf6038940c9dd5dc70dbe6fad6d20053592c3e"
+    },
+    {
+      "path": "csrc/attention/fused_quant_scatter_copy_sparse_flash_attention/op_host/fused_quant_scatter_copy_sparse_flash_attention_def.cpp",
+      "sha256": "a7e32b842c346242ef2d0f66d841db99666bbdf6694802bc1940af244abe860c"
+    },
+    {
+      "path": "csrc/attention/fused_quant_scatter_copy_sparse_flash_attention/op_host/fused_quant_scatter_copy_sparse_flash_attention_infershape.cpp",
+      "sha256": "1cd191265865e3bb3efadcaa0f4add0d3ff286475d4ebdc168de1ff60917774c"
+    },
+    {
+      "path": "csrc/attention/fused_quant_scatter_copy_sparse_flash_attention/op_host/fused_quant_scatter_copy_sparse_flash_attention_tiling.cpp",
+      "sha256": "a5067827c4552d652252d185a25d01aabacc7425f7a262517e29f6d7fee43bdf"
+    },
+    {
+      "path": "csrc/attention/fused_quant_scatter_copy_sparse_flash_attention/op_host/fused_quant_scatter_copy_sparse_flash_attention_tiling.h",
+      "sha256": "2faa1471ba93f492e92735d21a19ebcb211930c653448d763e0b726db019d143"
+    },
+    {
+      "path": "csrc/attention/fused_quant_scatter_copy_sparse_flash_attention/op_kernel/arch35/fused_quant_scatter_copy_sparse_flash_attention_common_arch35.h",
+      "sha256": "998dad982cc88b5e65fbda5eb68a87892ba29cb783d33a10b4365094ece49360"
+    },
+    {
+      "path": "csrc/attention/fused_quant_scatter_copy_sparse_flash_attention/op_kernel/arch35/fused_quant_scatter_copy_sparse_flash_attention_kernel_mla.h",
+      "sha256": "7488a08c20f2209983c4bd647dd967aa2f98637cc21b55fe6b18e8123d710b2b"
+    },
+    {
+      "path": "csrc/attention/fused_quant_scatter_copy_sparse_flash_attention/op_kernel/arch35/fused_quant_scatter_copy_sparse_flash_attention_kvcache.h",
+      "sha256": "1e9c6dfab9671f4408867ad24203b08fe475e26b72047194815987a26ba88193"
+    },
+    {
+      "path": "csrc/attention/fused_quant_scatter_copy_sparse_flash_attention/op_kernel/arch35/fused_quant_scatter_copy_sparse_flash_attention_service_cube_mla.h",
+      "sha256": "0a378478d2eb1ab893a910148cadee09dcad7b6d51fc65edf1b600d3b3ed0ff5"
+    },
+    {
+      "path": "csrc/attention/fused_quant_scatter_copy_sparse_flash_attention/op_kernel/arch35/fused_quant_scatter_copy_sparse_flash_attention_service_vector_mla.h",
+      "sha256": "67a758e78a0316460ca8ca2432838f2ad303ac3bc6edfdf411ff7aa3a1898455"
+    },
+    {
+      "path": "csrc/attention/fused_quant_scatter_copy_sparse_flash_attention/op_kernel/arch35/fused_quant_scatter_copy_sparse_flash_attention_source_gather.h",
+      "sha256": "3ed6c52137f05011da6c155ac293c5c7c93fe8365be04a113ae512bddeb74c99"
+    },
+    {
+      "path": "csrc/attention/fused_quant_scatter_copy_sparse_flash_attention/op_kernel/arch35/util.h",
+      "sha256": "881e792473825acfd839fd269a3c997ff05ec301bc174d1728726d8ea26f5567"
+    },
+    {
+      "path": "csrc/attention/fused_quant_scatter_copy_sparse_flash_attention/op_kernel/arch35/util_regbase.h",
+      "sha256": "a3dd733c5e6de526097a4e685494bdee9e4d9275bab08a6f14d8bffe1914f640"
+    },
+    {
+      "path": "csrc/attention/fused_quant_scatter_copy_sparse_flash_attention/op_kernel/common/CopyInL1.h",
+      "sha256": "97ed4f8686d00ffdd8555e37596a51da5f67b1f3ed66f76084fa4e2e5a4ce3da"
+    },
+    {
+      "path": "csrc/attention/fused_quant_scatter_copy_sparse_flash_attention/op_kernel/common/FixpipeOut.h",
+      "sha256": "12600e1718f0b53377387301a8493f8ce34ce77d0dd8464379ef23daadffaaff"
+    },
+    {
+      "path": "csrc/attention/fused_quant_scatter_copy_sparse_flash_attention/op_kernel/common/arch35/vf/vf_basic_block_aligned128_no_update_sfa.h",
+      "sha256": "7ec0f45a92cbfde57e4a50f859eb14372fe3ab95d80eed7c4b5f3a6473aea66b"
+    },
+    {
+      "path": "csrc/attention/fused_quant_scatter_copy_sparse_flash_attention/op_kernel/common/arch35/vf/vf_basic_block_aligned128_update_sfa.h",
+      "sha256": "cf4b5c9b941b8c7634380a9524cdea52934694860bf950ca5eeb2fc36fcbf8cf"
+    },
+    {
+      "path": "csrc/attention/fused_quant_scatter_copy_sparse_flash_attention/op_kernel/common/arch35/vf/vf_basic_block_unaligned128_no_update_sfa.h",
+      "sha256": "48c0f5035ba1ed29e2e893ae67956270ec3f578cd73e89c01fef865d5e53fd4a"
+    },
+    {
+      "path": "csrc/attention/fused_quant_scatter_copy_sparse_flash_attention/op_kernel/common/arch35/vf/vf_basic_block_unaligned128_update_sfa.h",
+      "sha256": "ea7e370b7b1bd311a13c89d565eb8225a7659ef809b33b99bc2f34c737b1b5b1"
+    },
+    {
+      "path": "csrc/attention/fused_quant_scatter_copy_sparse_flash_attention/op_kernel/common/arch35/vf/vf_basic_block_unaligned64_no_update_sfa.h",
+      "sha256": "9dca28c4402b0add93ed70f3e4fb78b06347a551a4d8f7e8a3cc79fdac422d90"
+    },
+    {
+      "path": "csrc/attention/fused_quant_scatter_copy_sparse_flash_attention/op_kernel/common/arch35/vf/vf_basic_block_unaligned64_update_sfa.h",
+      "sha256": "f890045b07720a2d22aece3c2a33acf795bd06dcf82909f47753fe34df9d25b6"
+    },
+    {
+      "path": "csrc/attention/fused_quant_scatter_copy_sparse_flash_attention/op_kernel/common/arch35/vf/vf_basic_block_utils.h",
+      "sha256": "7fbcfa5946fa89cb767f4bfc97893b9a2b19a8fc6f1b3710ec89f2e9c81fe52a"
+    },
+    {
+      "path": "csrc/attention/fused_quant_scatter_copy_sparse_flash_attention/op_kernel/common/arch35/vf/vf_flashupdate_new.h",
+      "sha256": "2f3bea7a06fdada65f52f0959af3b77aa92895a9f76fc61ea5e6307f7bc71774"
+    },
+    {
+      "path": "csrc/attention/fused_quant_scatter_copy_sparse_flash_attention/op_kernel/common/arch35/vf/vf_mul_sel_softmaxflashv2_cast_nz_sfa.h",
+      "sha256": "8ddafeda9671ac77f9fe1bc86bad512c1a821bd4229b19a825a43525e6e63d10"
+    },
+    {
+      "path": "csrc/attention/fused_quant_scatter_copy_sparse_flash_attention/op_kernel/common/buffer.h",
+      "sha256": "29b3f30336d6cf744ad775ce829ee33fd3b166cf553736f28ce198298da6f65d"
+    },
+    {
+      "path": "csrc/attention/fused_quant_scatter_copy_sparse_flash_attention/op_kernel/common/buffer_manager.h",
+      "sha256": "946944e5b032259c176d9b841bd84f139c8eaf9fd44aa6fb83b0ad8529f161d8"
+    },
+    {
+      "path": "csrc/attention/fused_quant_scatter_copy_sparse_flash_attention/op_kernel/common/buffer_mix_core.h",
+      "sha256": "b57e3cd6ed710400e5ede680300a5dcc0b8c9e0859f2625d61bc023a832063af"
+    },
+    {
+      "path": "csrc/attention/fused_quant_scatter_copy_sparse_flash_attention/op_kernel/common/buffers_policy.h",
+      "sha256": "6a03eb001b53335c865ddf52a9581ddd51d6b45260f8d994676fbd6b7469f79a"
+    },
+    {
+      "path": "csrc/attention/fused_quant_scatter_copy_sparse_flash_attention/op_kernel/common/matmul.h",
+      "sha256": "10b62f1218000686e6260ed3cf9ae4fb5a5bb0fdf7802913b93250f3c67c7fd4"
+    },
+    {
+      "path": "csrc/attention/fused_quant_scatter_copy_sparse_flash_attention/op_kernel/common/memcopy/fa_gm_tensor.h",
+      "sha256": "b3a245fd740607933bb6d2d8cd2698862517c1146461bd448ceaff545a93b961"
+    },
+    {
+      "path": "csrc/attention/fused_quant_scatter_copy_sparse_flash_attention/op_kernel/common/memcopy/fa_l1_tensor.h",
+      "sha256": "8eb170da3a99874ca9bb020ea91f6326e30486495c6ec4e4bfbf9082ff69673f"
+    },
+    {
+      "path": "csrc/attention/fused_quant_scatter_copy_sparse_flash_attention/op_kernel/common/memcopy/gm_coord.h",
+      "sha256": "9888e757f2c50e8efb109babd09f6fe1a3a8c2ba98051d72744f8f17931af4a1"
+    },
+    {
+      "path": "csrc/attention/fused_quant_scatter_copy_sparse_flash_attention/op_kernel/common/memcopy/gm_layout.h",
+      "sha256": "648c999f8bf552624b1ac57a4476caf7d89ee25451e404f78e4f7b09848b9b9e"
+    },
+    {
+      "path": "csrc/attention/fused_quant_scatter_copy_sparse_flash_attention/op_kernel/common/memcopy/offset_calculator_v2.h",
+      "sha256": "61367917e054c33cf5d03cab3cdce4493096e3e11bba350faa3fc4befe726732"
+    },
+    {
+      "path": "csrc/attention/fused_quant_scatter_copy_sparse_flash_attention/op_kernel/common/memcopy/parser.h",
+      "sha256": "4f47ec4a6633a0bc45b0c0e244e4ce2c74da3940e93b974d6280b84b6e8461ce"
+    },
+    {
+      "path": "csrc/attention/fused_quant_scatter_copy_sparse_flash_attention/op_kernel/common/offset_calculator.h",
+      "sha256": "0ab85b78da7e3c4be75142bd2bc7c8d7b41fe564e34bc2dbe1dd4be84b142892"
+    },
+    {
+      "path": "csrc/attention/fused_quant_scatter_copy_sparse_flash_attention/op_kernel/fused_quant_scatter_copy_sparse_flash_attention.cpp",
+      "sha256": "9b8eee3e95aa638aed503a01801c0d1d5a483e8dfae60c922c81ac7481b6c4ac"
+    },
+    {
+      "path": "csrc/attention/fused_quant_scatter_copy_sparse_flash_attention/op_kernel/fused_quant_scatter_copy_sparse_flash_attention_contract.h",
+      "sha256": "ed8bfaf12471605aa97335f1d79179e54bca6b1a2fe3145b06137515f32add1c"
+    },
+    {
+      "path": "csrc/attention/fused_quant_scatter_copy_sparse_flash_attention/op_kernel/fused_quant_scatter_copy_sparse_flash_attention_copy.h",
+      "sha256": "d12fedf78ad0fa3de29ee4fefbaa671a0f48c45d7f973117fb945e4759ebe512"
+    },
+    {
+      "path": "csrc/attention/fused_quant_scatter_copy_sparse_flash_attention/op_kernel/fused_quant_scatter_copy_sparse_flash_attention_schedule.h",
+      "sha256": "3bc2668a10f6eef65d07aa6b1fa67224a9ed85b9dff0d2e800ee99b42590a4a3"
+    },
+    {
+      "path": "csrc/attention/fused_quant_scatter_copy_sparse_flash_attention/op_kernel/fused_quant_scatter_copy_sparse_flash_attention_template_tiling_key.h",
+      "sha256": "4ac7d212f829403a05189c8c3aeef5b0eff04231163dba82472adf834bbe9234"
+    },
+    {
+      "path": "csrc/build.sh",
+      "sha256": "795766811a91c3ee2ffe709f8148e6aa78679bb6a1bb14abca0dccc89c42b39c"
+    },
+    {
+      "path": "csrc/build_aclnn.sh",
+      "sha256": "024efd5bc458f7b7b5b4ed89db7a6318595bcb2002b49bff8bba21ca7fbf2a30"
+    },
+    {
+      "path": "csrc/build_batch_invariant_ops.sh",
+      "sha256": "18d9b7d4fadff561036992b6b1a31cd5ffa706202a8994a0758888e26273f6f1"
+    },
+    {
+      "path": "csrc/camem_allocator.cpp",
+      "sha256": "6031a3ea41f5b63c8055771c241fa71911615f6c8753e055dd444616d379e2b0"
+    },
+    {
+      "path": "csrc/cmake/Third_Party_Open_Source_Software_List.yaml",
+      "sha256": "95b86d8cd73575ef78378c9d278eea1a39f433b31eb8a9a1f4d93310ad191ef9"
+    },
+    {
+      "path": "csrc/cmake/aclnn_ops_transformer.h.in",
+      "sha256": "1bfe5501540350cadcc75992e4f931d49195441870622794f458de28eae38276"
+    },
+    {
+      "path": "csrc/cmake/build_cache.cmake",
+      "sha256": "6244f6cf7aaed448140d5585bd891c468f8b13c1243f3009d13aa3dcfe7e5b8b"
+    },
+    {
+      "path": "csrc/cmake/build_empty_package.cmake",
+      "sha256": "80dbacf7c5ecd6ce3b6450597f811efac6e93108a1f80716e47287d6781d3a84"
+    },
+    {
+      "path": "csrc/cmake/config.cmake",
+      "sha256": "ba7d891de5effbbe282da517609192d38303acfb4a99f2198b175544d94f3c90"
+    },
+    {
+      "path": "csrc/cmake/config_utest.cmake",
+      "sha256": "cf2b2ded03b936a3f1c620c8707b08bacd4b5fd8229913bb89689c09e58b2ab9"
+    },
+    {
+      "path": "csrc/cmake/custom_build.cmake",
+      "sha256": "836a098dbc3f0782d3749f69852ea5416a1a046110cd4cb57eba058644d27c51"
+    },
+    {
+      "path": "csrc/cmake/dependencies.cmake",
+      "sha256": "73086c35f613ec20acd647175fa12d681682919ea6724d401e4b690e4892a69c"
+    },
+    {
+      "path": "csrc/cmake/func.cmake",
+      "sha256": "9c75caac6c27af5e0e402ed9bcdfdd2d5fcd6f3393832751418e6a908de98ffa"
+    },
+    {
+      "path": "csrc/cmake/func_examples.cmake",
+      "sha256": "abfe3a9cf7a90ae045ed8f91b19ac9c2cde8bd7edbe89313de7830b2ad765d79"
+    },
+    {
+      "path": "csrc/cmake/func_utest.cmake",
+      "sha256": "31a024a86bc39dde735898bb199a86c1406f9c7cf44ca9888eb1a7eb3f946b9c"
+    },
+    {
+      "path": "csrc/cmake/gen_ops_info.cmake",
+      "sha256": "20ae52097094f12fdf4e0892196e7a3d3823cb731f6aa7b67f092abc79a21ea7"
+    },
+    {
+      "path": "csrc/cmake/intf.cmake",
+      "sha256": "798b88fe4160fac7a12969c2a76f6a6de1ed4df8bb8492c90728329c5996ab53"
+    },
+    {
+      "path": "csrc/cmake/intf_pub.cmake",
+      "sha256": "ff89d6c825e2dc8de831011e8fe8bfe3d3793e23b2e8b5a8583827c5d1ccb798"
+    },
+    {
+      "path": "csrc/cmake/intf_pub_examples.cmake",
+      "sha256": "ee87527089c84a7bfcb54e5e3bf806bce63e30d70b505f71d5799c82cf637d57"
+    },
+    {
+      "path": "csrc/cmake/intf_pub_linux.cmake",
+      "sha256": "2556356b7a52c7ff2296a35094767829c468b73da9b7d22091951ba15f51f002"
+    },
+    {
+      "path": "csrc/cmake/intf_pub_llt_gccnative.cmake",
+      "sha256": "99fab7034c9e004508ca9fa7c954d562ce963ea32b5d08a0aa173ffa6c14636b"
+    },
+    {
+      "path": "csrc/cmake/intf_pub_utest.cmake",
+      "sha256": "60a11df8f41d9ee9f65690131e931654daf7cede40bbe66afae02c59ca9dd640"
+    },
+    {
+      "path": "csrc/cmake/makeself_built_in.cmake",
+      "sha256": "d797595823738f21487a113413acc201a42e261d04709254db36c01ddccba2f3"
+    },
+    {
+      "path": "csrc/cmake/makeself_custom.cmake",
+      "sha256": "820d3542747813256fc06b23450fd13d61f700cdb650db9cdcc3d7b8cc6c78ce"
+    },
+    {
+      "path": "csrc/cmake/modules/FindOPBASE.cmake",
+      "sha256": "90d6b7d30ab60d93699224d1937cad354b43b8d4c328a1ab571a014be3abec76"
+    },
+    {
+      "path": "csrc/cmake/modules/FindPython.cmake",
+      "sha256": "53923c6cb1374add319ec2ce2bd99ff3854dcf0b9940ac753e268a4b42e53871"
+    },
+    {
+      "path": "csrc/cmake/modules/Findaicpu.cmake",
+      "sha256": "4a82a6d3eb6f727a2bece4ece731a69c4aa0eea4415e1e778719f63785e695d2"
+    },
+    {
+      "path": "csrc/cmake/modules/Findalog.cmake",
+      "sha256": "e149f730d061cd38f7bf63c36d7859faa59cfe233359f9583bd7a3b05418ba0a"
+    },
+    {
+      "path": "csrc/cmake/modules/Finddlog.cmake",
+      "sha256": "ef4ac1da914c3461119c57ac479d2a170ea3769454fdde2029c3bb4f66985cd7"
+    },
+    {
+      "path": "csrc/cmake/modules/Findjson.cmake",
+      "sha256": "e5adf588bebc19cfafcb50e38c4a7355f38c9d7a5b5a6eaca8ba6ad60b078221"
+    },
+    {
+      "path": "csrc/cmake/modules/Findmetadef.cmake",
+      "sha256": "3d9bd95c7f1660dba1aae193e7fed75438951881cf7c364e2341e8ea7150c841"
+    },
+    {
+      "path": "csrc/cmake/modules/Findnnopbase.cmake",
+      "sha256": "c9a1092ed7783c84cc3a24368194383f464fe54bca4cce516f8f0b47f68d19a5"
+    },
+    {
+      "path": "csrc/cmake/modules/Findoptiling.cmake",
+      "sha256": "92d9794144748c850efa47e52d03f4a163284d27a8dfa6e5b27103179ec7077d"
+    },
+    {
+      "path": "csrc/cmake/modules/Findplatform.cmake",
+      "sha256": "296273025c30485ed66321d1ef7a5bdafedee7d98c9d450d351adf6844e1b9ef"
+    },
+    {
+      "path": "csrc/cmake/modules/Findruntime.cmake",
+      "sha256": "cc44b70bba9e55f7dbd86356cada8dd0f2697d5126f69ef901ba42194b05e4f1"
+    },
+    {
+      "path": "csrc/cmake/modules/Findsecurec.cmake",
+      "sha256": "7b96b0b500904a5d233c43e02dfc96093b36c6e1b636044c936456c5af28c852"
+    },
+    {
+      "path": "csrc/cmake/modules/Findtilingapi.cmake",
+      "sha256": "2d1cbce87c557c8d881f4270ae44647932d56ababa7f47a30e4324a46df1589f"
+    },
+    {
+      "path": "csrc/cmake/modules/Findunified_dlog.cmake",
+      "sha256": "6bf31e4f6a3b5e7496a55fa74bd341c408e0b1d1e3823b55f665d257e4aa70db"
+    },
+    {
+      "path": "csrc/cmake/obj_func.cmake",
+      "sha256": "00adbb4bec321d31560dafb348ddbd54d8b7baf1c8ec34383756609f0d67b726"
+    },
+    {
+      "path": "csrc/cmake/opbuild.cmake",
+      "sha256": "e7c4ff77e31e9153fd424f088355e162e5c9cefbf9c5e06c73996e676ccaf78f"
+    },
+    {
+      "path": "csrc/cmake/package.cmake",
+      "sha256": "84d6e11711e456d34a4eda18f4356b6922e90ced1e53790ca7aa4553cf1c1e83"
+    },
+    {
+      "path": "csrc/cmake/rty_obj_func.cmake",
+      "sha256": "5f746cdafa726321a643a23dee90faaa8d06640bce7ee3195347b6cb9cf97e9d"
+    },
+    {
+      "path": "csrc/cmake/runtimeKB.cmake",
+      "sha256": "861e300f578378587a39449bfd2f2c47889ade860de56be59cb355ca2f8e1408"
+    },
+    {
+      "path": "csrc/cmake/scripts/check_version_compatible.py",
+      "sha256": "16b1217b22c992b40c54acafb671540035be7c2e28167e15dd3c56bbb2416dbe"
+    },
+    {
+      "path": "csrc/cmake/scripts/convert_yaml.py",
+      "sha256": "cc158f0064788c8ae95bde2cbb9cb64d543e8a89f55e6e8efd7f9da824a94cfd"
+    },
+    {
+      "path": "csrc/cmake/scripts/custom/help.info",
+      "sha256": "50649a37b91c9e46cafd726dbe9b9d70dd497b061c2faa0f3dfc655454f804a0"
+    },
+    {
+      "path": "csrc/cmake/scripts/custom/install.sh",
+      "sha256": "e4eebdb43e230f27d601d94f5e20896421f33931e249285e589e343e2f5e952e"
+    },
+    {
+      "path": "csrc/cmake/scripts/custom/upgrade.sh",
+      "sha256": "86301053a643e899f123ccd162d76a86e75f45b642ffff9bc049095e9373db30"
+    },
+    {
+      "path": "csrc/cmake/scripts/examples/get_opapi_abs_path.py",
+      "sha256": "b953087543ea2e8b0227d9a71a1c42f350807677b3a5828f04a351a3e099d0d2"
+    },
+    {
+      "path": "csrc/cmake/scripts/examples/get_soc_info.py",
+      "sha256": "15232c14eef41122db45ffbd118ab1cb87450c8611601cef9fd7e523bedb44cf"
+    },
+    {
+      "path": "csrc/cmake/scripts/fix_format.sh",
+      "sha256": "516676be09d358fa2e53a8051823f910ff3d81f352d772bd1d1709d44a034450"
+    },
+    {
+      "path": "csrc/cmake/scripts/parse_changed_files.py",
+      "sha256": "e2756ebe46a1d41799755ec6cf1b4b3c2138bb12aa3083dcbcba259229470ea4"
+    },
+    {
+      "path": "csrc/cmake/scripts/prepare.sh",
+      "sha256": "5ddbac1f70349031659f772ba553e85bb0975aeef3657bd9cf2f75857f6049a3"
+    },
+    {
+      "path": "csrc/cmake/scripts/utest/gen_coverage.py",
+      "sha256": "7d1630dda0ea8ff9f37b416d9b29d97d7be473104f5ebac3dffa3bc6a3cfc972"
+    },
+    {
+      "path": "csrc/cmake/scripts/utest/gen_tiling_data_stub.py",
+      "sha256": "3740669592e483eb44d3533d1cc700732e539e7282ec8265caf5e249a56b8008"
+    },
+    {
+      "path": "csrc/cmake/scripts/util/ascendc_bin_param_build.py",
+      "sha256": "0b24e8aadb57bdce8bedfa6d0084429b0288fe20d5c1078a3121935fdec3ff0a"
+    },
+    {
+      "path": "csrc/cmake/scripts/util/ascendc_gen_options.py",
+      "sha256": "540c5217a1eff6ed553ef1577e365e1f375bdf74f0bbe2257c57d79f67276012"
+    },
+    {
+      "path": "csrc/cmake/scripts/util/ascendc_impl_build.py",
+      "sha256": "70602dba5a81553bb315c70a636498d70b69f7a001573c54042b418b0dd8fa03"
+    },
+    {
+      "path": "csrc/cmake/scripts/util/ascendc_ops_config.py",
+      "sha256": "9befe8c7ff8a17ccf5e2ae4248b7ab87896b57647e9f9ebac49b2dd09efdcf09"
+    },
+    {
+      "path": "csrc/cmake/scripts/util/const_var.py",
+      "sha256": "504764913f1cb35e22792f765d31305b8c6b80575ef0193eb6efda78c43a92ec"
+    },
+    {
+      "path": "csrc/cmake/scripts/util/gen_version_info.sh",
+      "sha256": "8a17fe6c7f72eac365f4a1011c57c7bcd6d5caf3140237099bf2beaae67ea60d"
+    },
+    {
+      "path": "csrc/cmake/scripts/util/opdesc_parser.py",
+      "sha256": "5c1da4b64a3f8a7d90a25b92217f383fa6455a9fe081fdf368ce35f6756a1854"
+    },
+    {
+      "path": "csrc/cmake/scripts/util/parse_ini_to_json.py",
+      "sha256": "d8f572c2437f0c79c06354bfbe31df29b7ca9d3cfce6a719d01c174357df81fb"
+    },
+    {
+      "path": "csrc/cmake/static.cmake",
+      "sha256": "54c62ed0bb9f94b20f9025d71f4c74c2d68fac7d6ecceb2eada03dc76f341a12"
+    },
+    {
+      "path": "csrc/cmake/symbol.cmake",
+      "sha256": "c74b136b00a74f969291760a64c32602ea8e45827cdb6f4ecbdeb2b8b5d087ce"
+    },
+    {
+      "path": "csrc/cmake/third_party/.gitkeep",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "csrc/cmake/third_party/abseil-cpp.cmake",
+      "sha256": "ae1cae2f2e9890690e47c59c792ed8357da7c2e518d7f6dd178675e7c4dc96b1"
+    },
+    {
+      "path": "csrc/cmake/third_party/ascend_protobuf.cmake",
+      "sha256": "fd1991519907c46048c12f61bfa4a837e60552ea703b51bccb0e5819717c55b9"
+    },
+    {
+      "path": "csrc/cmake/third_party/build/modules/patch/protobuf-hide_absl_symbols.patch",
+      "sha256": "ff1419dfcb83e9c9478f63e2ece972c0362b8ecda34535b8d2628cdaac81be92"
+    },
+    {
+      "path": "csrc/cmake/third_party/build/modules/patch/protobuf_25.1_change_version.patch",
+      "sha256": "210033396c1a3551f4e24dd5d49b5b4588c53b450ab05fef27d31ae389d94c4f"
+    },
+    {
+      "path": "csrc/cmake/third_party/gtest.cmake",
+      "sha256": "54c5ef08ac7245382aab927e69e6ac2eaf48078f09bf501272292660e1a30467"
+    },
+    {
+      "path": "csrc/cmake/third_party/json.cmake",
+      "sha256": "8314bfaf0151a146559e09d19599d3e96a267affbdca3efc87219910c998581d"
+    },
+    {
+      "path": "csrc/cmake/third_party/makeself-fetch.cmake",
+      "sha256": "7f4e793ae4bcac31525678d379e9a1f83e20da5b8837ab1fe4272f42a2578a2d"
+    },
+    {
+      "path": "csrc/cmake/third_party/protobuf.cmake",
+      "sha256": "e982438825e3dc3a57d31adb1a6d52a000ad26982f6dd86206337cbd6e7d6061"
+    },
+    {
+      "path": "csrc/cmake/third_party/secure_c.cmake",
+      "sha256": "9ae51e0ac385811d4ed4329780cd07013d616b0369e022063c77c6496b893056"
+    },
+    {
+      "path": "csrc/cmake/ut.cmake",
+      "sha256": "a96d06da0ccfa31657a9a767e9fe7dccbf5199ec084f14ef96c60568e7c3096a"
+    },
+    {
+      "path": "csrc/cmake/variables.cmake",
+      "sha256": "db592ed9d99e867b98ebb4826f838aab4947462a41d32d2aa3f3de0ce0d99121"
+    },
+    {
+      "path": "csrc/common/CMakeLists.txt",
+      "sha256": "4a1c787b37d7108e81ecc1ba3fb6b78fc8c30ccb917f93f54bd3da471307c8f1"
+    },
+    {
+      "path": "csrc/common/aicpu/cpu_context_util.h",
+      "sha256": "08f026a425e818c260f169d20048b43916077f8463bb0f51d041c2ad06300fc4"
+    },
+    {
+      "path": "csrc/common/include/cann_compat.h",
+      "sha256": "dafc8dca1f14c2ae7beb3dfbd108bdb9c5f8c8038a32422410a1cbbbe2fc4b8b"
+    },
+    {
+      "path": "csrc/common/include/common/op_api_def.h",
+      "sha256": "a2d2dc6673fe4fd74fa6a705ea1335f0c0b28552de373a0add38e36fb4455f01"
+    },
+    {
+      "path": "csrc/common/include/common/tensor_util.cpp",
+      "sha256": "eab77b1706175e0ca3a4ca251561094a761faff1e8c59b2040a9a8dd95651e65"
+    },
+    {
+      "path": "csrc/common/include/common/tensor_util.h",
+      "sha256": "651548a1d44b30d54ab869f4538c8140220806d91c97494cd1e1496840cf8ee1"
+    },
+    {
+      "path": "csrc/common/include/err/ops_err.h",
+      "sha256": "c150c65685ce43e18130180c254d9af5ad828243bd45cec714881ae25512bf16"
+    },
+    {
+      "path": "csrc/common/include/external/aclnn_kernels/cast.h",
+      "sha256": "f14627db3dd793c83e44f099d029d2713b2941443f82fcfae217b00f20707624"
+    },
+    {
+      "path": "csrc/common/include/external/aclnn_kernels/common/op_error_check.h",
+      "sha256": "fbe9f661053b23c33b8ca77b4d6d140c75ccd0ee240bef214f9397bb5f0d69f7"
+    },
+    {
+      "path": "csrc/common/include/external/aclnn_kernels/contiguous.h",
+      "sha256": "4eb6d5abfb97fc247fd0d13d59220e4cfa2c9e0ee37fb493b9e873a499011eaa"
+    },
+    {
+      "path": "csrc/common/include/external/aclnn_kernels/pad.h",
+      "sha256": "f968b2803a76dcc99debd54c6059a4415646f55dd874ce647ad3a54fb57e36f9"
+    },
+    {
+      "path": "csrc/common/include/external/aclnn_kernels/reshape.h",
+      "sha256": "dc33cd5ef3bb20b3542d3ff498f72b74a3e32d22037221ac43e80b3d9ad12d8f"
+    },
+    {
+      "path": "csrc/common/include/external/aclnn_kernels/slice.h",
+      "sha256": "cc36d0aa5fad117f81a7e8d9b9aaedf8441c1d49082a08b4d0a416f670b9a855"
+    },
+    {
+      "path": "csrc/common/include/external/aclnn_kernels/transdata.h",
+      "sha256": "fe02ca5e1b793abe2e1c874f0820cf20c529d6ed27e7e5d1f09dfd040d40277f"
+    },
+    {
+      "path": "csrc/common/include/external/aclnn_kernels/transpose.h",
+      "sha256": "7284621d9710bc793a81bc80710dd87b6e6fbc91dee6f82de0bd5a1867d0c46f"
+    },
+    {
+      "path": "csrc/common/include/external/aclnn_util.h",
+      "sha256": "4f6bf97354e47969ed73b0ced1365b954a5728a6817b1a755d8f652467e15c11"
+    },
+    {
+      "path": "csrc/common/include/fallback/fallback.h",
+      "sha256": "7f145bbc29504f09ed833ee428e1afa72806cc52f41dce1a8cd56d21d3e37c3c"
+    },
+    {
+      "path": "csrc/common/include/fallback/fallback_2stages.h",
+      "sha256": "373cdd101bb02f54c0799722b42aefca687c9a36a51f10c39c290e3683cabdbf"
+    },
+    {
+      "path": "csrc/common/include/fallback/fallback_comm.h",
+      "sha256": "48302b7e5c4f387fe6a9d400a046e5876a2b73d5e56710f19380d3f4fbf9bac7"
+    },
+    {
+      "path": "csrc/common/include/fallback/fallback_comm_2stages.h",
+      "sha256": "2d13a7c743dec1c8f8dc88e04d3201591a7f509bfdfdec307ef38d94c4946d85"
+    },
+    {
+      "path": "csrc/common/include/framework/onnx_common.h",
+      "sha256": "326bedaed2bb334e4be8ffbfe4bad34905556889e07c17571dc441b710f012c0"
+    },
+    {
+      "path": "csrc/common/include/graph/error_codes.h",
+      "sha256": "4c2a522661258ef869b7137cb695c32b21acddcfe8fcc225b3a6d064eccb0fe1"
+    },
+    {
+      "path": "csrc/common/include/kernel/common.h",
+      "sha256": "d26d042b297cf862c584e05b2625136e7ee99de3be53be2e32fb28efe62d60d9"
+    },
+    {
+      "path": "csrc/common/include/kernel/common_func.h",
+      "sha256": "1de03871c582d97e9ed1814763e65f30381bdaaa0dae6705a74ea0281ffa809b"
+    },
+    {
+      "path": "csrc/common/include/kernel/dropmask.h",
+      "sha256": "b93b07a2d06c590243cd1ba757c281a6b268d03ff819b311fb5aa088e06a7654"
+    },
+    {
+      "path": "csrc/common/include/kernel/gm_to_l1_iterator.h",
+      "sha256": "4e7e3b9b489e8b60ae356aa8f95d088ed2ddf1013a4518032312f4e13eefa7f9"
+    },
+    {
+      "path": "csrc/common/include/kernel/gm_to_ub_iterator.h",
+      "sha256": "a28634b12f044aad50eca3a46af52e3d0eb1a024b6301d1a948d917d3095a508"
+    },
+    {
+      "path": "csrc/common/include/kernel/hardware.h",
+      "sha256": "05a8bf30e465e22ea13b71f0eb2b71075de4396da35e3d95c80ba086ae5f42a8"
+    },
+    {
+      "path": "csrc/common/include/kernel/iterator.h",
+      "sha256": "70535c8c9c01aa935d45aed44d977f69f0ed2eeebeea1d80f060e4b1d1fbd39f"
+    },
+    {
+      "path": "csrc/common/include/kernel/l0c_to_gm_iterator.h",
+      "sha256": "a3eea68d194669fb7db53a3b38d3117cb1584f6637d22085081e4c0768a2429e"
+    },
+    {
+      "path": "csrc/common/include/kernel/l0c_to_l1_iterator.h",
+      "sha256": "2b73136bb76f3ef99649406fdba15c8dc7f50b606d728ab005e2417860ea7d06"
+    },
+    {
+      "path": "csrc/common/include/kernel/l0c_to_ub_iterator.h",
+      "sha256": "ede17f84df3f67a7063792f190b6b66cd328213af0d55ffd9997255988ab73f8"
+    },
+    {
+      "path": "csrc/common/include/kernel/l1_to_bt_iterator.h",
+      "sha256": "45ae57cd939a7a30e74b33dbfd088f8998445648cee71c8d291d449808233440"
+    },
+    {
+      "path": "csrc/common/include/kernel/l1_to_fb_iterator.h",
+      "sha256": "db7c233466609cf1b46c94b7d72f2b9d73ab6cc2167ed27f6809e2a097d06d1c"
+    },
+    {
+      "path": "csrc/common/include/kernel/l1_to_l0_iterator.h",
+      "sha256": "81308eebcfcdabc041d129af63e7de1655f94c232e24b2e360cfb8c5dad4ca90"
+    },
+    {
+      "path": "csrc/common/include/kernel/l1_to_ub_iterator.h",
+      "sha256": "3b4b7e08af1ed4d82b13e4994916c4d2fdd3ebe906cb3c406295b04e410d111a"
+    },
+    {
+      "path": "csrc/common/include/kernel/layout.h",
+      "sha256": "29815798a7238d674b649dbf97b48a250e58ca2b8ff6dc09a5667a2e973fdbde"
+    },
+    {
+      "path": "csrc/common/include/kernel/mem.h",
+      "sha256": "e240841f845f8343bf01e06cf1528c011986504a6da80fe54615f01b2a4428c5"
+    },
+    {
+      "path": "csrc/common/include/kernel/mma.h",
+      "sha256": "1d307e242c4d39c668668f254bb696b421326efbb6117ed9df704876fa6d877d"
+    },
+    {
+      "path": "csrc/common/include/kernel/pse.h",
+      "sha256": "0b1ec227c944e430a8ec354d4b40830626e2282ac06a5192439619b11833cde4"
+    },
+    {
+      "path": "csrc/common/include/kernel/simd.h",
+      "sha256": "88519d7abc601dc4fc6c36de52814901b407d549912c8b51d69b55ef070a5d31"
+    },
+    {
+      "path": "csrc/common/include/kernel/util.h",
+      "sha256": "9fb33460a503ce4da050613618efcf5e0c3de775231832f17a775b9ec83c531e"
+    },
+    {
+      "path": "csrc/common/include/op_graph/op_transformer_proto_extend.h",
+      "sha256": "99c120904009f3f5894f3728ec58c3fbf2ae6162a53ec73d0f0ad3bd20375358"
+    },
+    {
+      "path": "csrc/common/include/static/op_resource.h",
+      "sha256": "5539792673b5403f56289d5e288b1c25922785276e49384487ad0565a06529d6"
+    },
+    {
+      "path": "csrc/common/include/static/static_space.h",
+      "sha256": "2bfe133f9fc243c0c2b291eae0c48e127228d8babd4c7edb65017b6fcf98906b"
+    },
+    {
+      "path": "csrc/common/include/tiling_base/data_copy_transpose_tiling.h",
+      "sha256": "996e5b3376c1a28cf2e64407124e78d513e7873cf41717c13da2988ab5dd9d40"
+    },
+    {
+      "path": "csrc/common/include/tiling_base/data_copy_transpose_tiling_def.h",
+      "sha256": "c4e79d4cd37d5437e2050d5498fc3ad3f6bdbead2f14e677e17ab2d8e6b34a02"
+    },
+    {
+      "path": "csrc/common/include/tiling_base/error_log.h",
+      "sha256": "c540bb64bd36a6b75554e9edafd046f4cd0c21b96890295261db7e9d826352e7"
+    },
+    {
+      "path": "csrc/common/include/tiling_base/tiling_base.h",
+      "sha256": "49cbd19d8478d320909e3028c593bf02d71cae515f8d548b6342157e32ecb0d3"
+    },
+    {
+      "path": "csrc/common/include/tiling_base/tiling_key.h",
+      "sha256": "8b19df5b7c7950a70308bb74e934016753cb4a3168eb90ed7dce5942f1264a1d"
+    },
+    {
+      "path": "csrc/common/include/tiling_base/tiling_templates_registry.h",
+      "sha256": "2f4358b36fbbc1a116c55b6ca7d882b003e67af9bc6fd36e4fa7eed57415ff3b"
+    },
+    {
+      "path": "csrc/common/include/tiling_base/tiling_type.h",
+      "sha256": "1f3038e525a2c700724d083c84d4a8c7acdbce04932b1cee5ff54667e4479bd2"
+    },
+    {
+      "path": "csrc/common/include/tiling_base/tiling_util.h",
+      "sha256": "5d4c7d804900747b443e74cda88226d250a682c5b52f2aaecfee8c6c72a48534"
+    },
+    {
+      "path": "csrc/common/include/tiling_sink/device_op_impl_registry_impl.h",
+      "sha256": "b6398661152184c1fcd04ed00340ddae334b9eed9a52911b3f23d2721145abca"
+    },
+    {
+      "path": "csrc/common/include/tiling_sink/tiling_aicpu_task.h",
+      "sha256": "12071d9388a5aad5200f975a1c6ea0c8ee8a83a668127cfa85a13e388cdeeb3f"
+    },
+    {
+      "path": "csrc/common/src/fallback_comm.cpp",
+      "sha256": "9395b106cb871668ac7c483f411e3ea05bf4e56652508d883c6718af78cacc56"
+    },
+    {
+      "path": "csrc/common/src/fallback_comm_2stages.cpp",
+      "sha256": "0dc569aa337d7f905cda5905aa4057e5d4a0d849d8cf424ecf81cbb7d5edbf20"
+    },
+    {
+      "path": "csrc/common/src/framework/CMakeLists.txt",
+      "sha256": "5bfe36ed5a5700a897361b328b879cee570d4e3245d73f83d8b58f8f366822cd"
+    },
+    {
+      "path": "csrc/common/src/framework/embedding_bag_onnx_plugin.cpp",
+      "sha256": "0d9a4bd8de99ca6fefd616f99be1c68eeb22c351ddafbc9dc525f336b1475d43"
+    },
+    {
+      "path": "csrc/common/src/framework/fillwindowcache_onnx_plugin.cpp",
+      "sha256": "29a631ad3d460532131bd337fb3c9f7bac181609fdddd7159d1f10afa47d31ef"
+    },
+    {
+      "path": "csrc/common/src/framework/multi_head_attention_onnx_plugin.cpp",
+      "sha256": "774338f5eb606ac454535f2bcb03a469520441e44802b8c3487d67e724f3d671"
+    },
+    {
+      "path": "csrc/common/src/framework/npu_fused_attention_score_fwd_onnx_plugin.cpp",
+      "sha256": "33a82303fbf7ffa6e73e9d703ca8132d2013b87215fa371bdaa82147471db687"
+    },
+    {
+      "path": "csrc/common/src/framework/npu_fused_attention_score_onnx_plugin.cpp",
+      "sha256": "91cf56ca7eaef2805099bc6062266de63258db1da27ca58c3bc9d938f7ec2ea0"
+    },
+    {
+      "path": "csrc/common/src/framework/npu_masked_softmax_with_relposbias_onnx_plugin.cpp",
+      "sha256": "8e8f7f3d97f5ee0848a655cb6fd98815d78b9b6ee6aad31ec5fff8f5037719cf"
+    },
+    {
+      "path": "csrc/common/src/framework/npu_scaled_masked_softmax_onnx_plugin.cpp",
+      "sha256": "87904a6c514bb1d0c3c961529470aaa400018fd9b239aba70c72c87b97181268"
+    },
+    {
+      "path": "csrc/common/src/framework/tfidf_vectorizer_onnx_plugin.cpp",
+      "sha256": "4d2b2d24c912fbe9bd2da09dbfcba2633497c0f9835df954b0c28772fb789b9b"
+    },
+    {
+      "path": "csrc/common/src/tiling_base/tiling_util.cpp",
+      "sha256": "086bb37f7a324349b62cd569a200de940e3ea2567726448f1f5b7fd781a5d52c"
+    },
+    {
+      "path": "csrc/common/src/tiling_sink/CMakeLists.txt",
+      "sha256": "56f51af4a3c48ce9487cd9fd9c6522e42058e163ffeed4ac03d80b61ddac33e9"
+    },
+    {
+      "path": "csrc/common/src/tiling_sink/tiling_sink_registry.cpp",
+      "sha256": "088db7315f80d8c16bdc05f71339185b0d7ed41819a5b2b84b9583f7f885161f"
+    },
+    {
+      "path": "csrc/common/stub/CMakeLists.txt",
+      "sha256": "6f8311be1aec84fd9ca2efd28ce4f25a36dd9729edbd8c4ac62244b71a8a640c"
+    },
+    {
+      "path": "csrc/common/stub/inc/framework/stub_ops.h",
+      "sha256": "c7c02e618ed9517b7b2f867e5d63470da9bbc56016d1a83134259edc719a5c9e"
+    },
+    {
+      "path": "csrc/common/stub/op_api/CMakeLists.txt",
+      "sha256": "503234772679f08f5cccfefaf36e6aa8db62eaf00179b1152cce1ef159351542"
+    },
+    {
+      "path": "csrc/common/stub/op_api/aclnn_kernels/cast.h",
+      "sha256": "f14627db3dd793c83e44f099d029d2713b2941443f82fcfae217b00f20707624"
+    },
+    {
+      "path": "csrc/common/stub/op_api/aclnn_kernels/common/op_error_check.h",
+      "sha256": "fbe9f661053b23c33b8ca77b4d6d140c75ccd0ee240bef214f9397bb5f0d69f7"
+    },
+    {
+      "path": "csrc/common/stub/op_api/aclnn_kernels/contiguous.h",
+      "sha256": "4eb6d5abfb97fc247fd0d13d59220e4cfa2c9e0ee37fb493b9e873a499011eaa"
+    },
+    {
+      "path": "csrc/common/stub/op_api/aclnn_kernels/pad.h",
+      "sha256": "f968b2803a76dcc99debd54c6059a4415646f55dd874ce647ad3a54fb57e36f9"
+    },
+    {
+      "path": "csrc/common/stub/op_api/aclnn_kernels/reshape.h",
+      "sha256": "dc33cd5ef3bb20b3542d3ff498f72b74a3e32d22037221ac43e80b3d9ad12d8f"
+    },
+    {
+      "path": "csrc/common/stub/op_api/aclnn_kernels/slice.h",
+      "sha256": "cc36d0aa5fad117f81a7e8d9b9aaedf8441c1d49082a08b4d0a416f670b9a855"
+    },
+    {
+      "path": "csrc/common/stub/op_api/aclnn_kernels/transdata.h",
+      "sha256": "fe02ca5e1b793abe2e1c874f0820cf20c529d6ed27e7e5d1f09dfd040d40277f"
+    },
+    {
+      "path": "csrc/common/stub/op_api/aclnn_kernels/transpose.h",
+      "sha256": "7284621d9710bc793a81bc80710dd87b6e6fbc91dee6f82de0bd5a1867d0c46f"
+    },
+    {
+      "path": "csrc/common/stub/op_api/level0/add.h",
+      "sha256": "5fd355f36aba805739991bb699a77f3eea9168679a26283aad5515d46df7ba5e"
+    },
+    {
+      "path": "csrc/common/stub/op_api/level0/arange.h",
+      "sha256": "af66eecb0c10074e5af67a5ab533372077b1347b9ff735692684ed0201ccfec1"
+    },
+    {
+      "path": "csrc/common/stub/op_api/level0/axpy.h",
+      "sha256": "f27210905b1c52bccaf7272ef1770f65f770608bc8577cb8c7e5acbd44dee959"
+    },
+    {
+      "path": "csrc/common/stub/op_api/level0/batch_norm_backward.h",
+      "sha256": "1fb1e49e4bfe94e765cc2e9b56a18d03d62dc94749575b634649e0d19569e479"
+    },
+    {
+      "path": "csrc/common/stub/op_api/level0/broadcast_to.h",
+      "sha256": "2df328f965f2382d669e3a7e1e08238bf74827af849a3351fbe5ee2d83908f55"
+    },
+    {
+      "path": "csrc/common/stub/op_api/level0/dilation.h",
+      "sha256": "a3cc0913a45266df5aeee598adfcd67578d5336b8e2f5409c26f0808ddd033f8"
+    },
+    {
+      "path": "csrc/common/stub/op_api/level0/div.h",
+      "sha256": "7db261c2a789da5783e7cad8d1a8d68ef79809496e259c1a769900887a17b588"
+    },
+    {
+      "path": "csrc/common/stub/op_api/level0/dot.h",
+      "sha256": "d0cf1f5ac342af2d46061c57b8ab99e881a0e96dead5b04f83f5748b6c2deded"
+    },
+    {
+      "path": "csrc/common/stub/op_api/level0/expand.h",
+      "sha256": "641d4eff6d9d0e3c98a2b406023761dadab6c7d4fe64801bb0689ee2759331ed"
+    },
+    {
+      "path": "csrc/common/stub/op_api/level0/fault_injection.h",
+      "sha256": "176ac4130f35d48e684c35a8c9b7f232b81e0e798e6e05eda87e7b25dcb18de0"
+    },
+    {
+      "path": "csrc/common/stub/op_api/level0/fill.h",
+      "sha256": "358e2df347f7b75a3d834f246697e08b6a4e76b42a0e3cb69b19857dd81376d8"
+    },
+    {
+      "path": "csrc/common/stub/op_api/level0/gather_elements.h",
+      "sha256": "bd2b37364b38091d14c8d658f92917f08f76137fb528f90bbcaaca2c256e74cb"
+    },
+    {
+      "path": "csrc/common/stub/op_api/level0/gather_v2.h",
+      "sha256": "204f9e65b6ce75d6b228b70f0ad3679c577484248128ea2539c1bb18303773ce"
+    },
+    {
+      "path": "csrc/common/stub/op_api/level0/gather_v3.h",
+      "sha256": "644ced65b57ae6c7718dd7d778797046fff0fd68cac8dd28435149455f72bbf2"
+    },
+    {
+      "path": "csrc/common/stub/op_api/level0/inplace_index_add.h",
+      "sha256": "9d92a8ffc6897cd74102bb77d2c7a49105b684520349c353104efdde6cf83670"
+    },
+    {
+      "path": "csrc/common/stub/op_api/level0/masked_scatter.h",
+      "sha256": "e3370da11c42ee6e5bd5ef7f7be7648456b31da9c0e160b169e87e2a825eb8ee"
+    },
+    {
+      "path": "csrc/common/stub/op_api/level0/matmul_v2tov3.h",
+      "sha256": "aef484cc54dca9df1976d1a6da9c04a95c02f5ec3c88c15b4936252be339dbbc"
+    },
+    {
+      "path": "csrc/common/stub/op_api/level0/maximum.h",
+      "sha256": "82a23611369217429d00c1d0a816b49e5f741044d5599fdef3b199e36bc2fd74"
+    },
+    {
+      "path": "csrc/common/stub/op_api/level0/minimum.h",
+      "sha256": "cb0f7a95bf50fb0903fc9f10ed7e656ae50ae7e344bc6563dda17f66b7ecbfb0"
+    },
+    {
+      "path": "csrc/common/stub/op_api/level0/mul.h",
+      "sha256": "a407676b645e3319ba8b75e973a20942857ab331d2d2f3d7dedd1e0c242bfd25"
+    },
+    {
+      "path": "csrc/common/stub/op_api/level0/muls.h",
+      "sha256": "45add1fd94729960de9cb3e1ed9db73dc6823b2cc9c460b6fdbc60824dbd0ecb"
+    },
+    {
+      "path": "csrc/common/stub/op_api/level0/ones_like.h",
+      "sha256": "ef24e4d62b0f6bb5ffdf3674138da1a1dfe844759371af83868912f94315d24d"
+    },
+    {
+      "path": "csrc/common/stub/op_api/level0/padv3.h",
+      "sha256": "3cef09558852f0999a02e1edf497dae9eabf8ac158e597e08c54dbf25b604726"
+    },
+    {
+      "path": "csrc/common/stub/op_api/level0/reduce_mean.h",
+      "sha256": "52859cabc8656c63d052a6703679d8d04d786f816f356aed5d21a0b59cbf9748"
+    },
+    {
+      "path": "csrc/common/stub/op_api/level0/reduce_sum_op.h",
+      "sha256": "19a7f2ffabfc55020b3b47b47217e7ce40a22b9401fc644af7d77006d518e5ac"
+    },
+    {
+      "path": "csrc/common/stub/op_api/level0/shape_op.h",
+      "sha256": "eb449b07c6b659812a5b34e5ca96e55635bedbb9731826b0dc68b49b9adca00a"
+    },
+    {
+      "path": "csrc/common/stub/op_api/level0/sort.h",
+      "sha256": "0c24fbfbaddb24248ed1c0ecaba0f1a000315f516a7d987c1e8039dba8ddb356"
+    },
+    {
+      "path": "csrc/common/stub/op_api/level0/squeeze.h",
+      "sha256": "df9a5d3f262a3231b518b9e8e0c6bbce06b47c2dbc4ea3df739622f75b68a2f8"
+    },
+    {
+      "path": "csrc/common/stub/op_api/level0/sub.h",
+      "sha256": "61da0e7c93cbf7e6ff98607d5dfba3b136153f78e77dfd304793aab3f35b567c"
+    },
+    {
+      "path": "csrc/common/stub/op_api/level0/tensor_move.h",
+      "sha256": "d1bc5fa4bbbb7e34046777fbe92e7da07c2b8a5a18a1229bdcbf355b493a5fa4"
+    },
+    {
+      "path": "csrc/common/stub/op_api/level0/unsqueeze.h",
+      "sha256": "0b0f7bdb92f16e7c94119d9392b98f4f977cb0178839b7560d08aa629495f40a"
+    },
+    {
+      "path": "csrc/common/stub/op_api/level0/zero_op.h",
+      "sha256": "0449463e34de78a53890d4b00898454c67411be77ea0f7bdd8f6a412afc7f7ed"
+    },
+    {
+      "path": "csrc/common/stub/op_api/opapi_stub.cpp",
+      "sha256": "45f627ea0e362410c15531a294034d8e7e53c988e691c78fa2ff36d949d17bab"
+    },
+    {
+      "path": "csrc/common/stub/op_tiling/CMakeLists.txt",
+      "sha256": "1a775210e9f14da888537e724801b0195f04d661a28c82f281d5b00e0618b2ef"
+    },
+    {
+      "path": "csrc/common/stub/op_tiling/op_cache_def_tiling.h",
+      "sha256": "31de053d24bfdb73099884943bedb084b59a1fa76302986ac1f65f6f01af898b"
+    },
+    {
+      "path": "csrc/common/stub/op_tiling/op_cache_tiling.cpp",
+      "sha256": "5388b6b349cf906aea6c8999faf0da4cbd5c1340ec605da5864af20e20d2e0b9"
+    },
+    {
+      "path": "csrc/common/stub/op_tiling/op_cache_tiling.h",
+      "sha256": "32aebc00982ac12e5f8ad32e0580bab85388e8c52392616e914c8b6d8c4c3740"
+    },
+    {
+      "path": "csrc/common/stub/op_tiling/register/tuning_bank_key_registry.h",
+      "sha256": "f4a9e196b9696d8452848044a8f9249cee0f573070de1523e1b7a96e9a912f6e"
+    },
+    {
+      "path": "csrc/common/stub/op_tiling/register/tuning_tiling_reflection_utils.h",
+      "sha256": "71fe6b18cb4920b52e27c9b99e47f88e4dfe625b4157a9a003dde78cd19e7b5b"
+    },
+    {
+      "path": "csrc/common/stub/op_tiling/register/tuning_tiling_registry.h",
+      "sha256": "a83ef3aba4d1ff268ee528c5ac0a8aaf19a8e7c228e0a523f0f689c823db1877"
+    },
+    {
+      "path": "csrc/common/stub/op_tiling/runtime_kb_api.cpp",
+      "sha256": "9a64c2d1c33347cd743cc8a232e32898d557cd794443bd4563ce7383989d3322"
+    },
+    {
+      "path": "csrc/common/stub/op_tiling/runtime_kb_api.h",
+      "sha256": "1bde0fee76c4b0bd6c5980163c5091c70c7e2ea90aae95e39c15dc97520ca5f3"
+    },
+    {
+      "path": "csrc/common/stub/op_tiling/tbe_tiling_api.cpp",
+      "sha256": "44affc5f38a497cc17018f1b6bd58ecfc3e2b821f8d86331db04f574dbb29d30"
+    },
+    {
+      "path": "csrc/common/stub/op_tiling/tbe_tiling_api.h",
+      "sha256": "2615604a431a03f772ed6c56b91136389ca81a84d468313cfe3c78969617c517"
+    },
+    {
+      "path": "csrc/gmm/CMakeLists.txt",
+      "sha256": "1887be7afd1aa3097d2d753ba90b8a773fdd6f668edf9e73119af0ae20d9f855"
+    },
+    {
+      "path": "csrc/kernels/bgmv_expand.cpp",
+      "sha256": "783a07cb922fc4f5e9f862670a3cffd2ffb8bc2f205d49c2352bf1675b7dd294"
+    },
+    {
+      "path": "csrc/kernels/bgmv_shrink.cpp",
+      "sha256": "7622d2263b2f18e46c783a0926c89fa17c164837078fd173413385e77f4025f5"
+    },
+    {
+      "path": "csrc/kernels/math_utils.h",
+      "sha256": "f943c5f58936309299e3ec309f141c8815373787ca9aaa61d63b3761e169fa68"
+    },
+    {
+      "path": "csrc/kernels/sgmv_expand.cpp",
+      "sha256": "4ba99fd1fa925d783fd84a42d94dfc1e86a5af17e61d32734466ad56a36967db"
+    },
+    {
+      "path": "csrc/kernels/sgmv_shrink.cpp",
+      "sha256": "0a07766942e0f7757b28cd5b9de0b0a44b62fa2e235df7fed18ba2171e2cc12a"
+    },
+    {
+      "path": "csrc/kernels/types.h",
+      "sha256": "f6592568b467b0db895e1c8ab5041544008da8ed280775b368e9afe1eaf05e2f"
+    },
+    {
+      "path": "csrc/kernels/utils.h",
+      "sha256": "0b2112590212aff6050f7bd8a5b05a427094e61ae3737df365d23527306893da"
+    },
+    {
+      "path": "csrc/mc2/CMakeLists.txt",
+      "sha256": "3e8d4b4654be3df2a768cf4197d94c2fa898f2adb7844b96745746bb31dd74ce"
+    },
+    {
+      "path": "csrc/mla_preprocess/CMakeLists.txt",
+      "sha256": "faffe61ec4c0aff091cd25eb100680a42121d59835cb3e27da361f5231cbb221"
+    },
+    {
+      "path": "csrc/mla_preprocess/mla_preprocess_torch_adpt.h",
+      "sha256": "8728860f6dc936fbb1b85bad562e955dfeaa3f22317f0d05cf610f432621bb6c"
+    },
+    {
+      "path": "csrc/mla_preprocess/op_host/CMakeLists.txt",
+      "sha256": "2c8d3a81c5ac2dd49086fed9da3af1641a41685de81a6872607a6b452b2d9848"
+    },
+    {
+      "path": "csrc/mla_preprocess/op_host/mla_preprocess_def.cpp",
+      "sha256": "9a233954477f08b25089128c80ad7916881a4229d0b00b019ba223c60c723c47"
+    },
+    {
+      "path": "csrc/mla_preprocess/op_host/mla_preprocess_tiling.cpp",
+      "sha256": "446218913f662b3c0a35724ffef23984b7cd8544bd415a95e987e0be725d81e9"
+    },
+    {
+      "path": "csrc/mla_preprocess/op_host/mla_preprocess_tiling.h",
+      "sha256": "c27e137b40e3be1a779e9d0fd036bc3dc333dc58f7b96d4a5efb0ac2f40d814b"
+    },
+    {
+      "path": "csrc/mla_preprocess/op_kernel/kernel/common.h",
+      "sha256": "cec26f7c19342929efe257e8e71340eb04fbbb4ef1a499411dcd5d6cfebf4689"
+    },
+    {
+      "path": "csrc/mla_preprocess/op_kernel/kernel/common_func.h",
+      "sha256": "7124ddef0ce08448dc64a31fc342a3fb6b51ed495964d189f95333c2d80e5db2"
+    },
+    {
+      "path": "csrc/mla_preprocess/op_kernel/kernel/hardware.h",
+      "sha256": "0462ff37360db833db76fe4c5286968e79faf72f804d5a8ec0c7f80976cd9bbe"
+    },
+    {
+      "path": "csrc/mla_preprocess/op_kernel/kernel/iterator.h",
+      "sha256": "dc860b3530de60a80cb143db14e59713b97118df07cd1b9f63f590f080b10b6e"
+    },
+    {
+      "path": "csrc/mla_preprocess/op_kernel/kernel/iterators/gm_to_l1_iterator.inc",
+      "sha256": "33cb83918386b8b7841f60281b52f9642d29067c4691418bba8a90e46e91b790"
+    },
+    {
+      "path": "csrc/mla_preprocess/op_kernel/kernel/iterators/gm_to_ub_iterator.inc",
+      "sha256": "be005623bb465894cc7a01d56f1df8433071cd62efd02aa87900183e707eaf94"
+    },
+    {
+      "path": "csrc/mla_preprocess/op_kernel/kernel/iterators/l0c_to_gm_iterator.inc",
+      "sha256": "ff122e6dc14b83c73df60d18336be754c2edbdb81fba557b1bbb795504473192"
+    },
+    {
+      "path": "csrc/mla_preprocess/op_kernel/kernel/iterators/l0c_to_l1_iterator.inc",
+      "sha256": "67e3f50466b107de198b63c11efa7a7b04a4582a156667253d320714288806de"
+    },
+    {
+      "path": "csrc/mla_preprocess/op_kernel/kernel/iterators/l0c_to_ub_iterator.inc",
+      "sha256": "f0deee9437564ca3680b3a460118352287208539c94160f70067bfbce21d32d5"
+    },
+    {
+      "path": "csrc/mla_preprocess/op_kernel/kernel/iterators/l1_to_bt_iterator.inc",
+      "sha256": "cae6601f86308239c8cd48822785e94afd5d724913e5d76835945e9fb1ee96c1"
+    },
+    {
+      "path": "csrc/mla_preprocess/op_kernel/kernel/iterators/l1_to_fb_iterator.inc",
+      "sha256": "41150a5b9420d664fe99bc41a3418e1008edc7fbaa816aed80c137eeb2217de5"
+    },
+    {
+      "path": "csrc/mla_preprocess/op_kernel/kernel/iterators/l1_to_l0_iterator.inc",
+      "sha256": "3d92a2b84788bbe378531bc61e85c1b093b5962cbef140329598c99a416beaa6"
+    },
+    {
+      "path": "csrc/mla_preprocess/op_kernel/kernel/iterators/l1_to_ub_iterator.inc",
+      "sha256": "e07997189bd6618c6710d8a744eb1bcfba1865cc3b49362ad1799a22f3df5cbe"
+    },
+    {
+      "path": "csrc/mla_preprocess/op_kernel/kernel/kernel_utils.h",
+      "sha256": "fbef4e2dba0896c2e440aa271de4e6f4fe45e82a25a32c8eba4d51bfbbe56c51"
+    },
+    {
+      "path": "csrc/mla_preprocess/op_kernel/kernel/layout.h",
+      "sha256": "7cb14d7fc1531d67855010d58be656d50b816d06fe75e0b296c1fd078fb53fbb"
+    },
+    {
+      "path": "csrc/mla_preprocess/op_kernel/kernel/mem.h",
+      "sha256": "dab185861f6d0e456cb462bdb6491ecab9200e3dc2ca5de2e3c9086f26808500"
+    },
+    {
+      "path": "csrc/mla_preprocess/op_kernel/kernel/mma.h",
+      "sha256": "eeaa418a9d074a44b63a86d20741497b9ae1fb4ff9723d5040f6186c997afd94"
+    },
+    {
+      "path": "csrc/mla_preprocess/op_kernel/kernel/set_fpc.h",
+      "sha256": "a741d485421e9ce8210956b4fa78cf9c23589e4a454d88fa927c8d87235dab2f"
+    },
+    {
+      "path": "csrc/mla_preprocess/op_kernel/kernel/simd.h",
+      "sha256": "833ca386daaadd97e448dd7a19462494f4cf9767055f2bf228f6e8d1f21c7ab9"
+    },
+    {
+      "path": "csrc/mla_preprocess/op_kernel/kernel/utils.h",
+      "sha256": "766ea2b61901684029e5ffe4884dc1946a6d939fcf5fb01fd8ec3878fe132929"
+    },
+    {
+      "path": "csrc/mla_preprocess/op_kernel/mla_preprocess.cpp",
+      "sha256": "5ffd179b0800a18d6738c4cadfd256d41a53a50c24173b01f17522e35138258f"
+    },
+    {
+      "path": "csrc/mla_preprocess/op_kernel/mla_preprocess.h",
+      "sha256": "6c515e7e23abda61da3e159ce70db14aceb429721e28e91e3af8262fa2c5c86d"
+    },
+    {
+      "path": "csrc/mla_preprocess/op_kernel/mla_preprocess_mix_bf16.hpp",
+      "sha256": "edde515d63879a78635e73481e2be5d91690706cf63fd28b2bd7ae748252de95"
+    },
+    {
+      "path": "csrc/mla_preprocess/op_kernel/mla_preprocess_mix_bf16_nq.hpp",
+      "sha256": "e0845cf448f5cf87e3b43863d805bde04f10650cf9bf5138e8483b64244a4437"
+    },
+    {
+      "path": "csrc/mla_preprocess/op_kernel/mla_preprocess_mix_bf16_qdown.hpp",
+      "sha256": "6defb45c25945f32be0185a326de683f050c1fe397c255c5e1404e155f7822b8"
+    },
+    {
+      "path": "csrc/mla_preprocess/op_kernel/mla_preprocess_mix_fp16.hpp",
+      "sha256": "ee991ae383904914ce29514952bda90c91332f50ece4f0e909c0549d8d792109"
+    },
+    {
+      "path": "csrc/mla_preprocess/op_kernel/mla_preprocess_tiling_data.h",
+      "sha256": "8e820a3f35e93aab101651a115d41bbff84c97463282ad41d6b3344eff878ca9"
+    },
+    {
+      "path": "csrc/moe/CMakeLists.txt",
+      "sha256": "1887be7afd1aa3097d2d753ba90b8a773fdd6f668edf9e73119af0ae20d9f855"
+    },
+    {
+      "path": "csrc/ops.h",
+      "sha256": "0bcbbba1b64b4789280e44b57b7a2aac9635260bdea6a2b85998223ca4f12a35"
+    },
+    {
+      "path": "csrc/scripts/build_cache.py",
+      "sha256": "e699bd03e96f753e9a5c5781d5d93a6942f43798d82492927f8e9dfe4eac7445"
+    },
+    {
+      "path": "csrc/scripts/opgen/opgen_standalone.py",
+      "sha256": "47050807840194594dcf00160440ae58d0a753943226d235766fd625c3a252af"
+    },
+    {
+      "path": "csrc/scripts/opgen/template/CMakeLists.txt",
+      "sha256": "2ee239a8f20f73e5415deeeeef2e1e23873b1a618a70362cafa4e9e70bd5dcc5"
+    },
+    {
+      "path": "csrc/scripts/opgen/template/add/CMakeLists.txt",
+      "sha256": "b402e8b709c2110e43ab4a82b1538469a011926501afcfd5e6be2d8772300b17"
+    },
+    {
+      "path": "csrc/scripts/opgen/template/add/examples/test_aclnn_add_example.cpp",
+      "sha256": "ebe3ddd3c6b6bd7ae86e595b4af48f2192a7a28cfac65574e2b523db76abbaf5"
+    },
+    {
+      "path": "csrc/scripts/opgen/template/add/op_host/CMakeLists.txt",
+      "sha256": "02409fc525410861c89c2b4581175a955d9c75b2b7e9d9569324ffb48e93860f"
+    },
+    {
+      "path": "csrc/scripts/opgen/template/add/op_host/add_example_def.cpp",
+      "sha256": "06a917a3f46606017df7f9977dfaf912973ddc2ea4d3f6c72663c4b1ea97d7e4"
+    },
+    {
+      "path": "csrc/scripts/opgen/template/add/op_host/add_example_infershape.cpp",
+      "sha256": "6e2e6be61c8666576dc0788bde9ec013bace164d04f2512f611022c9868be4c2"
+    },
+    {
+      "path": "csrc/scripts/opgen/template/add/op_host/add_example_tiling.cpp",
+      "sha256": "8a07011a07866c8e465f0e02bc2ef9c4158887689e65ceee8ec74783481ecc57"
+    },
+    {
+      "path": "csrc/scripts/opgen/template/add/op_kernel/add_example.cpp",
+      "sha256": "711cb65019bc8be93cd5608e83f9aecd9323e93fc3f8d58b92717efe18c2af11"
+    },
+    {
+      "path": "csrc/scripts/opgen/template/add/op_kernel/add_example.h",
+      "sha256": "b1382c66fff9928a61c35035315d60dd88e93baa93a75136748a5edc91a7fb71"
+    },
+    {
+      "path": "csrc/scripts/opgen/template/add/op_kernel/add_example_tiling_data.h",
+      "sha256": "592fac342912f213ab39dbd4dd92f1c6e9325205b7fdd30fe665b434a10c3b98"
+    },
+    {
+      "path": "csrc/scripts/opgen/template/add/op_kernel/add_example_tiling_key.h",
+      "sha256": "b2b2cd6e6deeac5f0d754f3dc5f8a4a2a72ec3626ab5d10cae15ac95d43a630a"
+    },
+    {
+      "path": "csrc/scripts/opgen/template/add/tests/ut/.gitkeep",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "csrc/scripts/package/common/__init__.py",
+      "sha256": "205c29b7f780626eb73780de87e314d1ca0545feec01b14f703923cde4580674"
+    },
+    {
+      "path": "csrc/scripts/package/common/cfg/path.cfg",
+      "sha256": "48897ffcb2689aed83c608f86dbf9fa320e7184bd1cf5ca3a9c02961d018c27c"
+    },
+    {
+      "path": "csrc/scripts/package/common/py/__init__.py",
+      "sha256": "205c29b7f780626eb73780de87e314d1ca0545feec01b14f703923cde4580674"
+    },
+    {
+      "path": "csrc/scripts/package/common/py/filelist.py",
+      "sha256": "fd1e4cde9d30b7f43527524f09afc289085c3c52e38bd4c743520cd26c125ae8"
+    },
+    {
+      "path": "csrc/scripts/package/common/py/merge_binary_info_config.py",
+      "sha256": "a9ef93e6d8451c620ad6a2a4d82e1e838d33118acc6d60009b2fd1af167b2896"
+    },
+    {
+      "path": "csrc/scripts/package/common/py/packer.py",
+      "sha256": "10711ccf35b83b74f44841f2e8677c7eb3aa012bc36f3e054a6baac45de21d2b"
+    },
+    {
+      "path": "csrc/scripts/package/common/py/pkg_parser.py",
+      "sha256": "428aab187769a918757da3a4d101e9a94d0f399496ffc351835a4a1fd4a150f8"
+    },
+    {
+      "path": "csrc/scripts/package/common/py/utils/comm_log.py",
+      "sha256": "4e0d8a75446510e2172daa9a975effde81cbbfb3dad11afc4ab7864267c0d0f3"
+    },
+    {
+      "path": "csrc/scripts/package/common/py/utils/funcbase.py",
+      "sha256": "2c935b3918c1e1a48cffb690eb787a70341aa9e8ba416746b1b158f4977d81a8"
+    },
+    {
+      "path": "csrc/scripts/package/common/py/utils/pkg_utils.py",
+      "sha256": "9e212c7a7ae09acdebb2156952b6b7e3555ecaf096c7b70ff53d83bc868b22e5"
+    },
+    {
+      "path": "csrc/scripts/package/common/py/version_info.py",
+      "sha256": "2016ad05283e77eda922a68c0833f4e07d931df05c5741101387d9630dcadb6e"
+    },
+    {
+      "path": "csrc/scripts/package/common/sh/check_version_required.awk",
+      "sha256": "45f3732ebc28d6a9abc48d3950ff58de8d20aa9b59698a4faf010cbcd5e4ac86"
+    },
+    {
+      "path": "csrc/scripts/package/common/sh/cleanup.sh",
+      "sha256": "177bce748157640174ecb5574c91f435d3181917dd680034313b21e7d2c6d49c"
+    },
+    {
+      "path": "csrc/scripts/package/common/sh/common_func.inc",
+      "sha256": "e05d4400299033b1acbee950cd620c05432c41f31d1115374e937a002f5a2c78"
+    },
+    {
+      "path": "csrc/scripts/package/common/sh/common_func_v2.inc",
+      "sha256": "62973204970fe2b6cd780500374bfdedb9204cf3a626ae052431736f0f646428"
+    },
+    {
+      "path": "csrc/scripts/package/common/sh/common_installer.inc",
+      "sha256": "7bf9951e5fb7c2165d97fabaea19e53039f56c4a777e1a87ad77e6fb87f4fdc1"
+    },
+    {
+      "path": "csrc/scripts/package/common/sh/common_interface.csh",
+      "sha256": "2657f6eead0e901f9baf584a2fa9964422dff6e5b023bc1276336e5e20da0773"
+    },
+    {
+      "path": "csrc/scripts/package/common/sh/common_interface.fish",
+      "sha256": "7ae4f537d11126e331826ace664b9802d9da68a94bdabff77a17a794c8c3e42a"
+    },
+    {
+      "path": "csrc/scripts/package/common/sh/common_interface.sh",
+      "sha256": "95e51bf57524e2f00928aa4efbccff18a6fb5374097496359032b6b33b25266c"
+    },
+    {
+      "path": "csrc/scripts/package/common/sh/install_common_parser.sh",
+      "sha256": "051976e5b50d8660745d3603fae51d06a824e65b241c782d407c2fc9b974833f"
+    },
+    {
+      "path": "csrc/scripts/package/common/sh/multi_version.inc",
+      "sha256": "a4c50bcb38c4c0a960185ecf1a179c1084bf8d441a2eb21eb19f0ca70fa30274"
+    },
+    {
+      "path": "csrc/scripts/package/common/sh/script_operator.inc",
+      "sha256": "88c51469a416d4783ce9cf76f3cc8c060d97ecafcd803a562ce75db2d0cc40c1"
+    },
+    {
+      "path": "csrc/scripts/package/common/sh/version_cfg.inc",
+      "sha256": "03444a97f80844b024bf268240f991f58ee36c773dcec5a266237571c09b00bc"
+    },
+    {
+      "path": "csrc/scripts/package/common/sh/version_compatiable.inc",
+      "sha256": "d767d9eeaef5a91ab47516295aad3db6c8e4ff4fe2bc7f1da3b29dc5a60b40a1"
+    },
+    {
+      "path": "csrc/scripts/package/latest_manager/scripts/filelist.csv",
+      "sha256": "30494a428ffafe8da6d0945a219f867d5197952a5fb6b2b84871ce168848602a"
+    },
+    {
+      "path": "csrc/scripts/package/latest_manager/scripts/install.sh",
+      "sha256": "22990e13147fdafb0556163438fcc356151dad9a7a7c589b4572b381efa59281"
+    },
+    {
+      "path": "csrc/scripts/package/latest_manager/scripts/manager.sh",
+      "sha256": "688e5562c2fdd8a82f32d7b6980591a128a7017051eb3159c0499c8cac3bdcc9"
+    },
+    {
+      "path": "csrc/scripts/package/latest_manager/scripts/manager_func.sh",
+      "sha256": "0e2c968f5c997ad38ee6d51e5e9b4ce9469f5982360134b96f97b845c643f0b9"
+    },
+    {
+      "path": "csrc/scripts/package/latest_manager/scripts/uninstall.sh",
+      "sha256": "9f812c04fc51a932a9c32dd63b6c9ed6baf38a43d4bed86d96593b517a3eb4f3"
+    },
+    {
+      "path": "csrc/scripts/package/latest_manager/scripts/version.info",
+      "sha256": "94714d67af2979e6f8f4d3a83e32c6d9066dbd4b5ee862dcb6542fbc898ee52a"
+    },
+    {
+      "path": "csrc/scripts/package/module/ascend/EngineeringCommon.xml",
+      "sha256": "a5fc09b03f11d65fe9384e267ed6f2422b7cf0fbcdda2464295902f54b8e34ae"
+    },
+    {
+      "path": "csrc/scripts/package/module/ascend/EngineeringFiles.xml",
+      "sha256": "2740c2fc2e90af94670c5fa6761b2b94c22b70b2b931b0d629b6dc854aef57b1"
+    },
+    {
+      "path": "csrc/scripts/package/module/ascend/OpsTransformer.xml",
+      "sha256": "bc9b3d6dc0c30e9ce10a4b19974cc002e8b0c7eac5198f96958f5de6e0cd41b2"
+    },
+    {
+      "path": "csrc/scripts/package/module/ascend/OpsTransformerInc.xml",
+      "sha256": "597d90be44f49f1bd94788259e4c3fedf7557040a76d9b81a4d246846b056dd6"
+    },
+    {
+      "path": "csrc/scripts/package/ops_transformer/ops_transformer.xml",
+      "sha256": "6e92f460e57c6aeca2e9293ed3b3b2c906c9678326389d4b3491f79cd88ce781"
+    },
+    {
+      "path": "csrc/scripts/package/ops_transformer/scripts/cleanup.sh",
+      "sha256": "0b41bcf7a1c4ca79592c9927187e6a63e3e67035689feef95946f060e186e923"
+    },
+    {
+      "path": "csrc/scripts/package/ops_transformer/scripts/empty_package_scripts/cleanup.sh",
+      "sha256": "2aa90316b3283b9b36031bc8ee19e7ea9885f487ba49c841e85642ff2e33fa0f"
+    },
+    {
+      "path": "csrc/scripts/package/ops_transformer/scripts/empty_package_scripts/install.sh",
+      "sha256": "25b703bc8b6a1c4d174b60400bfcb342d24a56fdb1d09f9f57481b00c549811c"
+    },
+    {
+      "path": "csrc/scripts/package/ops_transformer/scripts/help.info",
+      "sha256": "40ec516d94c9b0f99ef91e38d5ef0c3bc52580666d7a712033ddfcc506e244a8"
+    },
+    {
+      "path": "csrc/scripts/package/ops_transformer/scripts/install.sh",
+      "sha256": "112186c1d784db29d1ab591ec4d4844f23fc0871d05cf8bd2e9fb9b1ba444633"
+    },
+    {
+      "path": "csrc/scripts/package/ops_transformer/scripts/opp_common.sh",
+      "sha256": "4cb7e19c2ee13a2b9862e31c1740e6b96705c1baeb4b75d75001d5c298f83509"
+    },
+    {
+      "path": "csrc/scripts/package/ops_transformer/scripts/opp_custom_install.sh",
+      "sha256": "50609940cf50e71f2b1e88f3c3bc067bdb214813ce7db89e1ddd05219901463b"
+    },
+    {
+      "path": "csrc/scripts/package/ops_transformer/scripts/opp_custom_uninstall.sh",
+      "sha256": "5419ec55ad5502031de50125052fb24856c2d601cbba30629cb24410babf13b2"
+    },
+    {
+      "path": "csrc/scripts/package/ops_transformer/scripts/opp_install.sh",
+      "sha256": "88bfc01b0344f34056c26ecfa0f8742049ee2f15c2529b5ecce9e777654dbb27"
+    },
+    {
+      "path": "csrc/scripts/package/ops_transformer/scripts/opp_uninstall.sh",
+      "sha256": "952e790f986351a5099f503d9bebf9a92d10f22442faa8112b25c4a8f9388e06"
+    },
+    {
+      "path": "csrc/scripts/package/ops_transformer/scripts/uninstall.sh",
+      "sha256": "009ca45906fa2c15168b7fcae68cd83b36a89de370ed44c00354c17b2a8b9ced"
+    },
+    {
+      "path": "csrc/scripts/package/ops_transformer/scripts/ver_check.sh",
+      "sha256": "c92f50fbb5045e322a03e8e5dfd4e87eabbcdfe11b661359193edf0d6992ebaf"
+    },
+    {
+      "path": "csrc/scripts/package/package.py",
+      "sha256": "6edf294f9f0d1edcd77adce09043c8a00ec7c3b1eebea260f111bbbf6ccc3146"
+    },
+    {
+      "path": "csrc/scripts/util/__init__.py",
+      "sha256": "e5ae5b60f8c5a4adcd000ea9c2a3c22c9f02ea988ce11482c636ac756003427d"
+    },
+    {
+      "path": "csrc/scripts/util/build_opp_kernel_static.py",
+      "sha256": "f5ea609cbb03581db7b0300b70ed6392e4b27b447fe0cecdc5f11be00bc9079d"
+    },
+    {
+      "path": "csrc/scripts/util/const_var.py",
+      "sha256": "5c45d57f86ba9cacd709e8fbbea37fe9798cb52f5a5abfa52df1fb6e84c622ca"
+    },
+    {
+      "path": "csrc/scripts/util/insert_op_info.py",
+      "sha256": "39cf5309c8cb034409e4f4fe5973ac00fa9c35c87ae0f6b1243c6554df3a80dc"
+    },
+    {
+      "path": "csrc/scripts/util/merge_aicpu_info_json.sh",
+      "sha256": "ef97458dc63af92bcdbd38303846dabe64610d8e3fbb80419c745f885dab6738"
+    },
+    {
+      "path": "csrc/scripts/util/merge_proto.py",
+      "sha256": "717103b24e82a24f600fa0b9d255256b471c12464b7b4b8f274f8353c295dd84"
+    },
+    {
+      "path": "csrc/scripts/util/modify_gen_aclnn.py",
+      "sha256": "0478aa9dc6d982c5f84e0771cb9b33a14731746885b99122aea1dc0b8e382925"
+    },
+    {
+      "path": "csrc/torch_binding.cpp",
+      "sha256": "bf3e737aa52afdb010930f7dbe1a46d432b7922cb0fd272490e9cd987e9b191d"
+    },
+    {
+      "path": "csrc/torch_binding_meta.cpp",
+      "sha256": "9f23a720ec7467ef28da684323318f65cfdb832aefebe82b596979ef9fad067e"
+    },
+    {
+      "path": "csrc/utils.h",
+      "sha256": "005adb0be5225f4c61ad6c655b60065dde93c62acd0c42c697caa695ef6c10f8"
+    },
+    {
+      "path": "csrc/utils/CMakeLists.txt",
+      "sha256": "a5cf27b28e5883310aedf105ad37ff1d8b40d4b23ed25b68a912653c500de492"
+    },
+    {
+      "path": "csrc/utils/inc/aclnn_util.h",
+      "sha256": "0149cb8fa393750c6c0533362a2d4d25d2fd798ea0a7221354ade36f06608244"
+    },
+    {
+      "path": "csrc/utils/inc/error/ops_error.h",
+      "sha256": "e58f905780d6d70b118a5a1e9e097059f7f810e6027a7a2981031a651c42fc4a"
+    },
+    {
+      "path": "csrc/utils/inc/fallback.h",
+      "sha256": "edda7ea481ca5711ccdd1667934bcd3a099e800461968f77a3ae1b850d0803c3"
+    },
+    {
+      "path": "csrc/utils/inc/fallback_comm.h",
+      "sha256": "bdc1329d45bd158cfed0450c2e637b1423b9f37811751b99578c441e0ddddd77"
+    },
+    {
+      "path": "csrc/utils/inc/kernel/comm_args.h",
+      "sha256": "ac4de6e4ad244d4dfd9c33c26cde54deffd329b73011750e0b85551649cd6340"
+    },
+    {
+      "path": "csrc/utils/inc/kernel/data_copy.h",
+      "sha256": "883787b6e74b35062e4e9f7c8ff3e5ee9d7873592c8a2eb13144410d8c9329aa"
+    },
+    {
+      "path": "csrc/utils/inc/kernel/dropmask.h",
+      "sha256": "f25ff1add68058a1d1d6e342d02cf21d1bcce60b233f52146725ebb4810e22b4"
+    },
+    {
+      "path": "csrc/utils/inc/kernel/moe_distribute_base.h",
+      "sha256": "2f75b62f0ca7b7a20263979de2c9279f323fb3c2f71de1904b3a738b0dce62e5"
+    },
+    {
+      "path": "csrc/utils/inc/kernel/pse.h",
+      "sha256": "110d9503d897fc0bdcc18fd83fcb70eadce4954726f07f33df60828a839e5af4"
+    },
+    {
+      "path": "csrc/utils/inc/kernel/sync_collectives.h",
+      "sha256": "b23b999f946a96a2249004e73f54ffc419b99d150c50ca1ac14f69c7336979c6"
+    },
+    {
+      "path": "csrc/utils/inc/kernel/util.h",
+      "sha256": "fabb4f2ec198a41b47dc13c524bddb6a9d793da7b0ed58f35db9d2937bf40745"
+    },
+    {
+      "path": "csrc/utils/inc/log/inner/dfx_base.h",
+      "sha256": "2f78ef00799db6d4b5f63b679bfde3d11183f9fc135a6b38554e118c612fc0de"
+    },
+    {
+      "path": "csrc/utils/inc/log/ops_log.h",
+      "sha256": "05f275c5cdcdc1488021326c2d99087d760cf2b1eb71d2428135a278d44f214b"
+    },
+    {
+      "path": "csrc/utils/inc/tiling/data_copy_transpose_tiling.h",
+      "sha256": "55e8907023ad38c99eb152e3c078c9d0491276b50560a8494738d1488bc0ec07"
+    },
+    {
+      "path": "csrc/utils/inc/tiling/data_copy_transpose_tiling_def.h",
+      "sha256": "99e440decac9b0e154fe2944f07b17706384224a19f676fbbf3a0db62a3838e3"
+    },
+    {
+      "path": "csrc/utils/inc/tiling/tiling_base.h",
+      "sha256": "202ef76e2c7d5928f8e2b5960eabc1b36150b9a189871a38c569f71a358ac96c"
+    },
+    {
+      "path": "csrc/utils/inc/tiling/tiling_templates_registry.h",
+      "sha256": "b1301c41977e06edc93fd2e2d2ca80bd40992f4670b8e40531b07687ee6f772e"
+    },
+    {
+      "path": "csrc/utils/inc/tiling/tiling_type.h",
+      "sha256": "5f439815a34b613d17c4479d027c7e9602c520df3c94783f2ae9504f4eff36c8"
+    },
+    {
+      "path": "csrc/utils/src/fallback_comm.cpp",
+      "sha256": "e09deecd415ba7d7e2d082b2917980b3bdc7e3aebed8e1febe93c16352fe6b1a"
+    },
+    {
+      "path": "csrc/version.info",
+      "sha256": "ded381f16944eadc994bc572dd878a5053269ad7b84f6344450baed20c594afa"
+    }
+  ],
+  "builder_adapted_from": "McZyWu/sgl-kernel-npu:503f8a2f432b57fb56fc3403833192f35469e1dd benchmark/lim_a5_mtp_ab",
+  "dependencies": {
+    "abseil-cpp-20230802.1.tar.gz": "987ce98f02eefbaf930d6e38ab16aa05737234d7afbab2d5c4ea7adbe50c28ed",
+    "json-include-3.11.3.zip": "5580533576f6cde8f2c36843f3b27fc552d263bdcc00c597a36b1919a4a78df8",
+    "json-LICENSE-MIT.txt": "62176251affdda17bece4ddd44271d68019e2448ca721d2c1af4c650f29c9898",
+    "makeself-upstream-2.5.0.tar.gz": "705d0376db9109a8ef1d4f3876c9997ee6bed454a23619e1dbc03d25033e46ea",
+    "original-copysfa-pr18490-source.tar.xz": "cf46cded0f3cb65ca419cff0c905641d058b6866f92b43179aa5c713c81f5245",
+    "protobuf-25.1.tar.gz": "9bd87b8280ef720d3240514f884e56a712f2218f0d693b48050c836028940a42"
+  }
+}
