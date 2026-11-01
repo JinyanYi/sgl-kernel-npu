@@ -433,6 +433,33 @@ if(SGL_KERNEL_ENABLE_A5_ONLY_OPS)
     )
 endif()
 
+# McZyWu original A5 LIM, pinned to e53e8d8 / PR18383. CopySFA keeps its
+# independently validated native registration, tiling ABI and batch launch.
+set(SGL_KERNEL_A5_C8_ORIGINAL_SOURCE "" CACHE PATH "Prepared original A5 LIM source root")
+if(SGL_KERNEL_ENABLE_A5_ONLY_OPS)
+    list(APPEND OP_SRCS ${PROJECT_OP_SRC_BASE}/a5_c8_registration.cpp)
+        set(_a5_original_csrc "${SGL_KERNEL_A5_C8_ORIGINAL_SOURCE}/csrc")
+        foreach(_source
+            attention/fused_quant_lightning_indexer_manage/fused_quant_lightning_indexer_manage_torch_adpt.h
+            attention/fused_quant_lightning_indexer_manage/fused_quant_lightning_indexer_manage_ordered.h
+            aclnn_torch_adapter/op_api_common.h
+            aclnn_torch_adapter/NPUBridge.cpp
+            aclnn_torch_adapter/NPUStorageImpl.cpp)
+            if(NOT EXISTS "${_a5_original_csrc}/${_source}")
+                message(FATAL_ERROR "Missing original A5 source: ${_a5_original_csrc}/${_source}")
+            endif()
+        endforeach()
+        add_compile_definitions(SGL_KERNEL_A5_C8_ORIGINAL)
+        list(APPEND OP_SRCS ${PROJECT_OP_SRC_BASE}/a5_c8_original.cpp
+            ${_a5_original_csrc}/aclnn_torch_adapter/NPUBridge.cpp
+            ${_a5_original_csrc}/aclnn_torch_adapter/NPUStorageImpl.cpp)
+        set_source_files_properties(${PROJECT_OP_SRC_BASE}/a5_c8_original.cpp
+            ${_a5_original_csrc}/aclnn_torch_adapter/NPUBridge.cpp
+            ${_a5_original_csrc}/aclnn_torch_adapter/NPUStorageImpl.cpp
+            PROPERTIES COMPILE_OPTIONS "-fvisibility=hidden"
+            COMPILE_DEFINITIONS "vllm_ascend=sgl_a5_original")
+endif()
+
 # create shared library
 add_library(${OP_PLUGIN_NAME} SHARED ${OP_SRCS})
 
@@ -463,6 +490,7 @@ target_compile_options(${OP_PLUGIN_NAME} PRIVATE -fopenmp)
 target_link_libraries(${OP_PLUGIN_NAME} PRIVATE gomp)
 
 target_include_directories(${OP_PLUGIN_NAME} PRIVATE
+        ${_a5_original_csrc}
         ${PROJECT_OP_SRC_BASE}/utils
         ${PROJECT_SOURCE_DIR}/include
         ${PROJECT_OP_SRC_BASE}/causal_conv1d_update/op_kernel

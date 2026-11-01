@@ -17,7 +17,7 @@ repos:
       - id: check-ast
       - id: check-added-large-files
         # Pinned offline CANN build dependencies, verified by PROVENANCE.json.
-        exclude: ^benchmark/copysfa_a5_ab/reference/vendor/.*\.(tar\.(gz|xz)|zip)$
+        exclude: ^benchmark/(?:copysfa_a5_ab/reference|lim_a5_mtp_ab)/vendor/.*\.(tar\.(gz|xz)|zip)$
       - id: check-merge-conflict
       - id: check-shebang-scripts-are-executable
       - id: detect-private-key
