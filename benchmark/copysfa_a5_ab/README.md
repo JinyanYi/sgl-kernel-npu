@@ -9,6 +9,77 @@ and device sources are retained unchanged in the reference source archive.
 The reference is built under an isolated vendor and Torch namespace, without
 installing vLLM or changing global OPP, DeepEP or the selected kernel wheel.
 
+## Diagnose the FP16 H8 failure and compare latency
+
+The reported FP16 H8 failure had relative L2 `0.481742`. The existing fixture
+always encoded RoPE as BF16 and rounded dequantized values to BF16, even for
+an FP16 query. Both the pinned original and port reinterpret RoPE as `Q_T`
+and dequantize values to `Q_T`. Decoding those same legacy bytes on CPU using
+FP16 gives relative L2 `0.481748` against the old BF16 golden. This strongly
+supports a fixture format mismatch; it does not replace the A5 original/port
+comparison. No kernel arithmetic or precision threshold is changed here.
+
+In the same A5 container/interpreter used by the failed pytest, with the
+existing A5 kernel wheel installed and an available device selected:
+
+```bash
+cd /mnt/share/y00970600/personal/sgl-kernel-npu
+export PYTHON_BIN="$(command -v python3)"
+export ASCEND_RT_VISIBLE_DEVICES=0
+bash benchmark/copysfa_a5_ab/run_a5_diagnostics.sh \
+  "/mnt/share/y00970600/copysfa-diagnostics-$(date +%Y%m%d-%H%M%S)-$$" \
+  --full-matrix
+```
+
+This builds the unchanged PR18490 reference from bundled offline sources in
+a new private `/tmp` directory. No vLLM Python installation or system OPP
+replacement is needed. It activates the reference before NPU initialization
+and checks the registered-host Tensor header transport. To reuse a reference
+built by this repository's builder with the same Torch/CANN environment, set
+`ORIGINAL_PATHS_ENV=/path/to/build/paths.env`; the driver verifies the reference
+revision, binding hash and resolved ACLNN paths. This update changes tests
+only; a kernel wheel already built from `995130e` need not be rebuilt.
+
+`dispatch_ab.py` runs all 12 cases in separate processes, including after a
+failure: FP16/BF16 x H8/H16 x eager/graph with the **unchanged failing fixture**,
+then four FP16 H8/H16 eager/graph cases using matching FP16 KV encoding
+(`*_typedkv`). Dtype/head changes retain identical KV/metadata, and H8 queries
+are the first eight H16 heads. Typed-KV cases keep the query, FP8 bytes, scales
+and metadata and encode RoPE as FP16; their CPU golden rounds dequantized KV
+to FP16. Both backends always receive the exact same case tensors, registered
+DRAM address and separate initially identical HBM/output buffers.
+
+The original CPU gates stay `atol=0.008`, `rtol=0.05`, maximum relative L2
+`0.08`. Direct original/port parity uses `atol=0.002`, `rtol=0.005` and also
+requires relative L2 at most `0.08`. A second
+`kernel_layout_diagnostic_only` golden decodes the original bytes according
+to query dtype, to explain a layout mismatch; **it cannot make the acceptance
+gate pass**. Old-format FP16 cases may still fail and make the overall command
+exit nonzero. They are preserved as evidence, with no xfail or skip. Read the
+`*_typedkv` outcomes separately. The full matrix still runs after diagnostic
+accuracy failures, but a failed transport/build stops before device testing.
+
+Every case saves `fixture.pt`, `outputs_eager.pt`, optional
+`outputs_graph.pt`, per-backend CPU errors, direct parity, HBM byte equality,
+DRAM immutability, source/binding/DSO hashes and schemas in `case.json`.
+`dispatch/summary.json` contains all results and subprocess exit codes.
+If only the port fails, investigate the port; if both agree but fail the old
+golden and both pass matching-format cases, the fixture mismatch is supported.
+Any failure with matching-format inputs still needs investigation.
+
+Only cases passing both CPU gates, payload equality and direct parity proceed
+to timing: 20 warmups, three rounds of 50 samples per backend, alternating
+backend order. Both graphs are captured independently. NPU event intervals
+include only the operator/replay; resets, validation and transfers stay
+outside. Accuracy is rechecked after every timing round. Reports retain all
+raw samples, median, p95, port/original ratio and a soft warning above 20%
+regression. A failed timing-round accuracy check invalidates those samples.
+The tiny B1/Q1 dispatch latency is diagnostic; `--full-matrix` additionally
+runs the existing 38-case B16 Q1/Q4, C=8192/16384/32384, 95/91 hit-rate,
+eager/graph and boundary/shared-page matrix, with results under `matrix/`.
+These are standalone CopySFA measurements without LIM, framework metadata
+preparation or model execution. They do not establish full-model throughput.
+
 ## Prepare on A5
 
 Use a private environment with the paired Ascend950 `sgl_kernel_npu` wheel.

@@ -48,7 +48,9 @@ def physical_rows(table: torch.Tensor, logical_tokens: torch.Tensor) -> torch.Te
     ) * BLOCK_SIZE + logical_tokens.remainder(BLOCK_SIZE)
 
 
-def make_packed_bytes(blocks: int, generator: torch.Generator) -> torch.Tensor:
+def make_packed_bytes(
+    blocks: int, generator: torch.Generator, kv_dtype: torch.dtype = torch.bfloat16
+) -> torch.Tensor:
     nope = (
         torch.randint(
             -3,
@@ -63,7 +65,7 @@ def make_packed_bytes(blocks: int, generator: torch.Generator) -> torch.Tensor:
     rope = (
         torch.empty((blocks, BLOCK_SIZE, 1, ROPE_DIM), dtype=torch.float32)
         .uniform_(-0.5, 0.5, generator=generator)
-        .to(torch.bfloat16)
+        .to(kv_dtype)
     )
     scales = torch.empty(
         (blocks, BLOCK_SIZE, 1, NOPE_DIM // BLOCK_SIZE), dtype=torch.float32
@@ -81,14 +83,16 @@ def make_packed_bytes(blocks: int, generator: torch.Generator) -> torch.Tensor:
     return packed.view(torch.int8).contiguous()
 
 
-def unpack_rows(rows: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+def unpack_rows(
+    rows: torch.Tensor, kv_dtype: torch.dtype = torch.bfloat16
+) -> tuple[torch.Tensor, torch.Tensor]:
     raw = rows.contiguous().view(torch.uint8)
     nope_c8 = raw[:, :NOPE_DIM].contiguous().view(torch.float8_e4m3fn)
-    rope = raw[:, NOPE_DIM : NOPE_DIM + 2 * ROPE_DIM].contiguous().view(torch.bfloat16)
+    rope = raw[:, NOPE_DIM : NOPE_DIM + 2 * ROPE_DIM].contiguous().view(kv_dtype)
     scales = raw[:, NOPE_DIM + 2 * ROPE_DIM :].contiguous().view(torch.float32)
     value = (
         (nope_c8.float() * scales.repeat_interleave(BLOCK_SIZE, dim=-1))
-        .to(torch.bfloat16)
+        .to(kv_dtype)
         .float()
     )
     key = torch.cat((value, rope.float()), dim=-1)
@@ -101,6 +105,7 @@ def make_test_data(
     seed: int = 2026,
     query_dtype: torch.dtype = torch.bfloat16,
     query_heads: int = 8,
+    kv_dtype: torch.dtype = torch.bfloat16,
 ) -> TestData:
     if not 0 <= miss_count <= TOPK:
         raise ValueError("miss_count must be in [0, 2048]")
@@ -108,6 +113,8 @@ def make_test_data(
         raise ValueError("cache_tokens must be in [2048, 32760]")
     if query_dtype not in (torch.bfloat16, torch.float16):
         raise ValueError("query_dtype must be bfloat16 or float16")
+    if kv_dtype not in (torch.bfloat16, torch.float16):
+        raise ValueError("kv_dtype must be bfloat16 or float16")
     generator = torch.Generator().manual_seed(seed + miss_count + cache_tokens)
     dram_blocks = 18
     hbm_blocks = math.ceil(cache_tokens / BLOCK_SIZE)
@@ -119,7 +126,7 @@ def make_test_data(
     dram_block_table = (
         torch.randperm(dram_blocks, generator=generator).to(torch.int32).view(1, -1)
     )
-    dram = make_packed_bytes(dram_blocks, generator)
+    dram = make_packed_bytes(dram_blocks, generator, kv_dtype)
     initial_hbm = torch.full(
         (hbm_blocks, BLOCK_SIZE, 1, PACKED_DIM), POISON, dtype=torch.int8
     )
@@ -155,7 +162,7 @@ def make_test_data(
     )
     scale_value = 1.0 / math.sqrt(NOPE_DIM + ROPE_DIM)
     selected_rows = dram_rows[source_physical]
-    key, value = unpack_rows(selected_rows)
+    key, value = unpack_rows(selected_rows, kv_dtype)
     scores = query[0].float() @ key.T * scale_value
     probability = torch.softmax(scores, dim=-1)
     attention_golden = (probability @ value).unsqueeze(0)
