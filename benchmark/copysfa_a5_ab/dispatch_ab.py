@@ -13,6 +13,8 @@ import sys
 import traceback
 from pathlib import Path
 
+from result_contract import accepted, format_mismatch_reproduced, is_legacy_negative
+
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "tests"))
 
@@ -111,7 +113,15 @@ def worker(args):
     output = args.output_root
     output.mkdir(parents=True, exist_ok=False)
     report = dict(
-        case=args.case, status="running", command=sys.argv, reference_revision=REVISION
+        case=args.case,
+        status="running",
+        command=sys.argv,
+        reference_revision=REVISION,
+        test_kind=(
+            "legacy_format_negative"
+            if is_legacy_negative(args.case)
+            else "numerical_acceptance"
+        ),
     )
     write_json(output / "case.json", report)
     try:
@@ -322,7 +332,20 @@ def worker(args):
                 mode == "eager" or report["graph"]["passed"]
             )
             write_json(output / "case.json", report)
-            if report["accuracy_passed"]:
+            if is_legacy_negative(args.case):
+                report["status"] = "accuracy_failed"
+                report["expectation_passed"] = format_mismatch_reproduced(
+                    args.case, report
+                )
+                report["status"] = (
+                    "expected_format_mismatch"
+                    if report["expectation_passed"]
+                    else "unexpected_diagnostic_result"
+                )
+                report["performance"] = dict(
+                    skipped="Legacy-format negative control; excluded from performance acceptance"
+                )
+            elif report["accuracy_passed"]:
 
                 def enqueue(name):
                     graphs[name].replay() if graphs else call(name)
@@ -407,7 +430,7 @@ def worker(args):
         report["traceback"] = traceback.format_exc()
     write_json(output / "case.json", report)
     print(json.dumps(report, indent=2, allow_nan=False), flush=True)
-    return 0 if report["status"] in ("pass", "performance_warning") else 1
+    return 0 if accepted(dict(case=args.case, result=report, exit_code=0)) else 1
 
 
 def main():
@@ -498,13 +521,17 @@ def main():
                 flush=True,
             )
     report["status"] = (
-        "pass"
-        if all(
-            row["exit_code"] == 0
-            and row["result"]["status"] in ("pass", "performance_warning")
+        "pass" if all(accepted(row) for row in report["cases"]) else "failed"
+    )
+    report["counts"] = dict(
+        numerical_acceptance_passed=sum(
+            not is_legacy_negative(row["case"]) and accepted(row)
             for row in report["cases"]
-        )
-        else "failed"
+        ),
+        negative_controls_passed=sum(
+            is_legacy_negative(row["case"]) and accepted(row) for row in report["cases"]
+        ),
+        unexpected_failures=sum(not accepted(row) for row in report["cases"]),
     )
     write_json(args.output_root / "summary.json", report)
     print(f"{report['status']}: {args.output_root / 'summary.json'}", flush=True)

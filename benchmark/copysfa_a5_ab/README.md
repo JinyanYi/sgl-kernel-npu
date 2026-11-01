@@ -15,9 +15,12 @@ The reported FP16 H8 failure had relative L2 `0.481742`. The existing fixture
 always encoded RoPE as BF16 and rounded dequantized values to BF16, even for
 an FP16 query. Both the pinned original and port reinterpret RoPE as `Q_T`
 and dequantize values to `Q_T`. Decoding those same legacy bytes on CPU using
-FP16 gives relative L2 `0.481748` against the old BF16 golden. This strongly
-supports a fixture format mismatch; it does not replace the A5 original/port
-comparison. No kernel arithmetic or precision threshold is changed here.
+FP16 gives relative L2 `0.481748` against the old BF16 golden. The user-run A5
+comparison on 2026-11-01 reproduced the same FP16 error in both backends; all
+four matching FP16-format cases and all four BF16 cases passed. The 38-case
+matrix also reported pass. The original evidence remains on A5 at
+`/mnt/share/y00970600/copysfa-diagnostics-20261101-091321-13897`.
+No kernel arithmetic or precision threshold is changed here.
 
 In the same A5 container/interpreter used by the failed pytest, with the
 existing A5 kernel wheel installed and an available device selected:
@@ -49,15 +52,29 @@ and metadata and encode RoPE as FP16; their CPU golden rounds dequantized KV
 to FP16. Both backends always receive the exact same case tensors, registered
 DRAM address and separate initially identical HBM/output buffers.
 
+Formal fixtures now default KV encoding and dequantization rounding to query
+dtype. Explicit `kv_dtype=torch.bfloat16` preserves the old malformed FP16
+input for the diagnostic only. Formal pytest cases therefore test matching
+formats without skipping or relaxing FP16 checks. The wrapper runs those
+formal tests before the diagnostic and records `formal.exitcode`/`formal.xml`.
+
 The original CPU gates stay `atol=0.008`, `rtol=0.05`, maximum relative L2
 `0.08`. Direct original/port parity uses `atol=0.002`, `rtol=0.005` and also
 requires relative L2 at most `0.08`. A second
 `kernel_layout_diagnostic_only` golden decodes the original bytes according
 to query dtype, to explain a layout mismatch; **it cannot make the acceptance
-gate pass**. Old-format FP16 cases may still fail and make the overall command
-exit nonzero. They are preserved as evidence, with no xfail or skip. Read the
-`*_typedkv` outcomes separately. The full matrix still runs after diagnostic
-accuracy failures, but a failed transport/build stops before device testing.
+gate pass** for numerical acceptance. Old-format FP16 cases are explicit
+negative controls: both backends must fail the old CPU gate with finite
+outputs and relative L2 above 0.08, match each other, preserve KV bytes and
+DRAM, and match the diagnostic interpretation of their actual packed bytes.
+Both eager and graph stages must satisfy these checks. Only then is status
+`expected_format_mismatch` accepted with exit zero. A crash, payload mismatch,
+one-sided error, unexpected success or missing graph check remains a failure.
+The raw CPU comparisons stay failed in the JSON and those cases are excluded
+from performance. There is no xfail or skip. A healthy run reports eight
+numerical acceptance passes and four negative-control passes and exits zero.
+The full matrix still runs after formal/diagnostic failures, but a failed
+transport/build stops before device testing.
 
 Every case saves `fixture.pt`, `outputs_eager.pt`, optional
 `outputs_graph.pt`, per-backend CPU errors, direct parity, HBM byte equality,
@@ -79,6 +96,47 @@ runs the existing 38-case B16 Q1/Q4, C=8192/16384/32384, 95/91 hit-rate,
 eager/graph and boundary/shared-page matrix, with results under `matrix/`.
 These are standalone CopySFA measurements without LIM, framework metadata
 preparation or model execution. They do not establish full-model throughput.
+
+## Print a per-case performance report without rerunning NPU tests
+
+After updating this branch, the existing A5 results can be reported directly:
+
+```bash
+python3 benchmark/copysfa_a5_ab/report.py \
+  /mnt/share/y00970600/copysfa-diagnostics-20261101-091321-13897
+```
+
+The reporter is standard-library-only and reads either a diagnostics root,
+one matrix/dispatch directory, or a single `summary.json`. It prints every
+case's vLLM/ours median and p95 in microseconds, median ratio and percentage
+deltas. `+10%` means ours is 10% slower; `-10%` means ours is 10% faster.
+Each group ends with its measured/negative/failed counts, min/max median
+regression, worst case and warning count. The matrix driver now also prints
+each case as it finishes, instead of staying silent until the entire matrix.
+
+The full wrapper prints a combined report at the end and saves
+`performance_report.txt`, `performance_report.csv` and
+`performance_report.json` in the diagnostics root. Running the reporter on old
+results produces these same derived files without modifying original
+`summary.json` files or their recorded exit codes. Verified old-format failures
+are labeled as legacy negative controls; other failures stay visible and
+their timing is excluded. Report command exit zero means report generation
+succeeded, not that the original run passed. Source statuses and completed
+versus expected case counts are printed explicitly.
+
+To rerun all checks using the already built reference in the same container:
+
+```bash
+export ORIGINAL_PATHS_ENV=/tmp/copysfa-reference-OhlDPkL3/build/paths.env
+export PYTHON_BIN="$(command -v python3)"
+export ASCEND_RT_VISIBLE_DEVICES="${ASCEND_RT_VISIBLE_DEVICES:-0}"
+bash benchmark/copysfa_a5_ab/run_a5_diagnostics.sh \
+  "/mnt/share/y00970600/copysfa-diagnostics-$(date +%Y%m%d-%H%M%S)-$$" \
+  --full-matrix
+```
+
+Keep the same Torch/CANN environment and choose a free device. Only test and
+report code changed; the existing kernel wheel does not need recompilation.
 
 ## Prepare on A5
 

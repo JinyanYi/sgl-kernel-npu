@@ -105,8 +105,10 @@ def make_test_data(
     seed: int = 2026,
     query_dtype: torch.dtype = torch.bfloat16,
     query_heads: int = 8,
-    kv_dtype: torch.dtype = torch.bfloat16,
+    kv_dtype: torch.dtype | None = None,
 ) -> TestData:
+    if kv_dtype is None:
+        kv_dtype = query_dtype
     if not 0 <= miss_count <= TOPK:
         raise ValueError("miss_count must be in [0, 2048]")
     if not TOPK <= cache_tokens <= MAX_CACHE_TOKENS:

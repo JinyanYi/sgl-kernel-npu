@@ -9,6 +9,7 @@ import pytest
 import torch
 
 ROOT = Path(__file__).parents[1]
+sys.path.insert(0, str(ROOT / "benchmark/copysfa_a5_ab"))
 spec = importlib.util.spec_from_file_location(
     "copysfa_dispatch_ab", ROOT / "benchmark/copysfa_a5_ab/dispatch_ab.py"
 )
@@ -66,12 +67,22 @@ def test_nonfinite_outputs_fail_and_remain_json_serializable():
 
 def test_dtype_head_cross_keeps_identical_kv_and_failing_seed():
     data = [
-        make_test_data(8, query_dtype=dtype, query_heads=heads, seed=dispatch.SEED)
+        make_test_data(
+            8,
+            query_dtype=dtype,
+            query_heads=heads,
+            seed=dispatch.SEED,
+            kv_dtype=torch.bfloat16,
+        )
         for dtype in (torch.float16, torch.bfloat16)
         for heads in (8, 16)
     ]
     original_failure = make_test_data(
-        8, query_dtype=torch.float16, query_heads=8, seed=20261032
+        8,
+        query_dtype=torch.float16,
+        query_heads=8,
+        seed=20261032,
+        kv_dtype=torch.bfloat16,
     )
     torch.testing.assert_close(data[0].query, original_failure.query, rtol=0, atol=0)
     for value in data:
@@ -117,7 +128,9 @@ def test_driver_runs_all_cases_after_accuracy_failure(tmp_path, monkeypatch):
 
 
 def test_matching_fp16_kv_changes_rope_encoding_but_keeps_queries_and_scales():
-    legacy = make_test_data(8, query_dtype=torch.float16, seed=dispatch.SEED)
+    legacy = make_test_data(
+        8, query_dtype=torch.float16, seed=dispatch.SEED, kv_dtype=torch.bfloat16
+    )
     typed = make_test_data(
         8, query_dtype=torch.float16, seed=dispatch.SEED, kv_dtype=torch.float16
     )
@@ -129,7 +142,9 @@ def test_matching_fp16_kv_changes_rope_encoding_but_keeps_queries_and_scales():
 
 
 def test_legacy_fp16_byte_interpretation_reproduces_reported_error():
-    legacy = make_test_data(8, query_dtype=torch.float16, seed=dispatch.SEED)
+    legacy = make_test_data(
+        8, query_dtype=torch.float16, seed=dispatch.SEED, kv_dtype=torch.bfloat16
+    )
     result = dispatch.compare(
         dispatch.kernel_layout_golden(legacy),
         legacy.attention_golden,
@@ -144,4 +159,81 @@ def test_legacy_fp16_byte_interpretation_reproduces_reported_error():
     )
     torch.testing.assert_close(
         dispatch.kernel_layout_golden(typed), typed.attention_golden, atol=0, rtol=0
+    )
+
+
+def test_formal_fp16_fixture_defaults_to_matching_query_dtype():
+    default = make_test_data(8, query_dtype=torch.float16, seed=dispatch.SEED)
+    explicit = make_test_data(
+        8, query_dtype=torch.float16, seed=dispatch.SEED, kv_dtype=torch.float16
+    )
+    assert torch.equal(default.dram, explicit.dram)
+    assert torch.equal(default.attention_golden, explicit.attention_golden)
+
+
+def negative_result(case="float16_h8_eager"):
+    check = dict(
+        passed=False,
+        finite=True,
+        payload_bitwise=True,
+        max_relative_l2=0.48,
+        kernel_layout_diagnostic_only=dict(passed=True),
+    )
+    stage = dict(
+        original=check.copy(),
+        port=check.copy(),
+        parity=dict(passed=True),
+        dram_unchanged=True,
+    )
+    return dict(case=case, status="expected_format_mismatch", eager=stage, graph=stage)
+
+
+def test_negative_control_has_to_reproduce_the_specific_format_mismatch():
+    from result_contract import accepted
+
+    case = "float16_h8_graph"
+    result = negative_result(case)
+    assert accepted(dict(case=case, result=result, exit_code=0))
+    # An arbitrary error, one-sided mismatch, or bad payload must still fail.
+    for mutate in (
+        lambda r: r.update(status="error"),
+        lambda r: r["eager"]["port"].update(payload_bitwise=False),
+        lambda r: r["eager"]["parity"].update(passed=False),
+        lambda r: r["eager"]["port"].update(passed=True),
+        lambda r: r["eager"]["port"].update(finite=False),
+        lambda r: r["eager"]["port"]["kernel_layout_diagnostic_only"].update(
+            passed=False
+        ),
+        lambda r: r.pop("graph"),
+    ):
+        fresh = json.loads(json.dumps(negative_result(case)))
+        mutate(fresh)
+        assert not accepted(dict(case=case, result=fresh, exit_code=0))
+
+
+def test_driver_accepts_verified_negatives_with_real_acceptance_passes(
+    tmp_path, monkeypatch
+):
+    from result_contract import is_legacy_negative
+
+    def fake_process(command, **kwargs):
+        output = Path(command[command.index("--output-root") + 1])
+        case = command[command.index("--case") + 1]
+        output.mkdir()
+        dispatch.write_json(
+            output / "case.json",
+            negative_result(case) if is_legacy_negative(case) else dict(status="pass"),
+        )
+        return type("Result", (), dict(returncode=0))()
+
+    monkeypatch.setattr(dispatch.subprocess, "run", fake_process)
+    monkeypatch.setattr(
+        sys, "argv", ["dispatch_ab.py", "--output-root", str(tmp_path / "result")]
+    )
+    assert dispatch.main() == 0
+    report = json.loads((tmp_path / "result/summary.json").read_text())
+    assert report["status"] == "pass"
+    assert len(report["cases"]) == 12
+    assert report["counts"] == dict(
+        numerical_acceptance_passed=8, negative_controls_passed=4, unexpected_failures=0
     )

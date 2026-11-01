@@ -61,6 +61,13 @@ cp -- "$reference_env" "$output/reference_paths.env"
 "$PYTHON_BIN" -m pytest -sv "$repo/tests/test_copysfa_reference_transport.py" \
     --junitxml="$output/reference_transport.xml" 2>&1 | tee "$output/reference_transport.log"
 
+formal_rc=0
+"$PYTHON_BIN" -m pytest -sv \
+    "$repo/tests/test_fused_quant_scatter_copy_sparse_flash_attention.py" \
+    "$repo/tests/test_fused_quant_scatter_copy_sparse_flash_attention_a5.py" \
+    --junitxml="$output/formal.xml" 2>&1 | tee "$output/formal.log" || formal_rc=$?
+printf '%s\n' "$formal_rc" > "$output/formal.exitcode"
+
 diagnostic_rc=0
 "$PYTHON_BIN" "$script_dir/dispatch_ab.py" --output-root "$output/dispatch" \
     2>&1 | tee "$output/dispatch.log" || diagnostic_rc=$?
@@ -73,6 +80,10 @@ if [[ "$full_matrix" == --full-matrix ]]; then
         2>&1 | tee "$output/matrix.log" || matrix_rc=$?
     printf '%s\n' "$matrix_rc" > "$output/matrix.exitcode"
 fi
-if (( diagnostic_rc != 0 || matrix_rc != 0 )); then
+report_rc=0
+"$PYTHON_BIN" "$script_dir/report.py" "$output" \
+    2>&1 | tee "$output/performance_report.log" || report_rc=$?
+printf '%s\n' "$report_rc" > "$output/report.exitcode"
+if (( formal_rc != 0 || diagnostic_rc != 0 || matrix_rc != 0 || report_rc != 0 )); then
     exit 1
 fi

@@ -12,6 +12,7 @@ import sys
 from pathlib import Path
 
 from fixture import Config, matrix
+from report import case_line, load_rows, write_report
 
 
 def cases(batch=16, heads=8):
@@ -159,6 +160,8 @@ def main():
         (args.output_root / "summary.json").write_text(
             json.dumps(report, indent=2) + "\n"
         )
+        _, rows = load_rows([args.output_root / "summary.json"])
+        print(case_line(rows[-1]), flush=True)
         if exit_code or result["status"] not in (
             "pass",
             "performance_warning",
@@ -174,6 +177,7 @@ def main():
             else "pass"
         )
     (args.output_root / "summary.json").write_text(json.dumps(report, indent=2) + "\n")
+    write_report([args.output_root / "summary.json"], args.output_root)
     print(
         json.dumps(
             dict(

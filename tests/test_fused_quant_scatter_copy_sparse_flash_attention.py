@@ -156,15 +156,3 @@ def test_fused_quant_scatter_copy_sparse_flash_attention_dispatch(
         8, query_dtype=query_dtype, query_heads=query_heads, seed=20261032
     )
     run_test_data(data)
-
-
-@pytest.mark.parametrize("query_heads", [8, 16])
-def test_float16_with_matching_packed_kv_dtype(query_heads: int) -> None:
-    data = make_test_data(
-        8,
-        query_dtype=torch.float16,
-        query_heads=query_heads,
-        seed=20261032,
-        kv_dtype=torch.float16,
-    )
-    run_test_data(data)
