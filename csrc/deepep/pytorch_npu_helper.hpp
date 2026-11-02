@@ -13,6 +13,7 @@
 #include <functional>
 #include <type_traits>
 #include <vector>
+#include "op_api_library.hpp"
 
 #include "torch_npu/csrc/aten/NPUNativeFunctions.h"
 #include "torch_npu/csrc/core/npu/NPUStream.h"
@@ -94,7 +95,7 @@ static struct MapInitializer {
     }
 } map_initializer;
 
-#define GET_OP_API_FUNC(apiName) reinterpret_cast<_##apiName>(GetOpApiFuncAddr(#apiName))
+#define GET_OP_API_FUNC(apiName) reinterpret_cast<_##apiName>(GetDeepEpOpApiFuncAddr(#apiName))
 
 #define MEMCPY_TO_BUF(data_expression, size_expression)                             \
     if (g_hashOffset + (size_expression) > kHashBufSize) {                          \
@@ -136,21 +137,9 @@ inline void *GetOpApiLibHandler(const char *libName)
     return handler;
 }
 
-inline void *GetOpApiFuncAddr(const char *apiName)
+inline void *GetDeepEpOpApiFuncAddr(const char *apiName)
 {
-    static auto custOpApiHandler = GetOpApiLibHandler(GetCustOpApiLibName());
-    if (custOpApiHandler != nullptr) {
-        auto funcAddr = GetOpApiFuncAddrInLib(custOpApiHandler, GetCustOpApiLibName(), apiName);
-        if (funcAddr != nullptr) {
-            return funcAddr;
-        }
-    }
-
-    static auto opApiHandler = GetOpApiLibHandler(GetOpApiLibName());
-    if (opApiHandler == nullptr) {
-        return nullptr;
-    }
-    return GetOpApiFuncAddrInLib(opApiHandler, GetOpApiLibName(), apiName);
+    return deep_ep::op_api::resolve(apiName);
 }
 
 inline c10::Scalar ConvertTensorToScalar(const at::Tensor &tensor)
@@ -552,11 +541,11 @@ typedef void (*ReleaseHugeMem)(void *, bool);
 
 #define EXEC_NPU_CMD(aclnn_api, ...)                                                                              \
     do {                                                                                                          \
-        static const auto getWorkspaceSizeFuncAddr = GetOpApiFuncAddr(#aclnn_api "GetWorkspaceSize");             \
-        static const auto opApiFuncAddr = GetOpApiFuncAddr(#aclnn_api);                                           \
-        static const auto initMemAddr = GetOpApiFuncAddr("InitHugeMemThreadLocal");                               \
-        static const auto unInitMemAddr = GetOpApiFuncAddr("UnInitHugeMemThreadLocal");                           \
-        static const auto releaseMemAddr = GetOpApiFuncAddr("ReleaseHugeMem");                                    \
+        static const auto getWorkspaceSizeFuncAddr = GetDeepEpOpApiFuncAddr(#aclnn_api "GetWorkspaceSize");       \
+        static const auto opApiFuncAddr = GetDeepEpOpApiFuncAddr(#aclnn_api);                                     \
+        static const auto initMemAddr = GetDeepEpOpApiFuncAddr("InitHugeMemThreadLocal");                         \
+        static const auto unInitMemAddr = GetDeepEpOpApiFuncAddr("UnInitHugeMemThreadLocal");                     \
+        static const auto releaseMemAddr = GetDeepEpOpApiFuncAddr("ReleaseHugeMem");                              \
         TORCH_CHECK(getWorkspaceSizeFuncAddr != nullptr && opApiFuncAddr != nullptr, #aclnn_api, " or ",          \
                     #aclnn_api "GetWorkspaceSize", " not in ", GetOpApiLibName(), ", or ", GetOpApiLibName(),     \
                     "not found.");                                                                                \

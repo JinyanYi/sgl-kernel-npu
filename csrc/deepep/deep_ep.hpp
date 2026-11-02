@@ -6,6 +6,7 @@
 #include <vector>
 #include <optional>
 #include <string>
+#include <map>
 #include "hccl/hccl.h"
 #include "hccl/hccl_types.h"
 #include "aclnn/opdev/platform.h"
@@ -14,6 +15,8 @@
 #include "event.hpp"
 
 namespace deep_ep {
+
+std::map<std::string, std::string> resolve_op_api_libraries();
 
 struct Buffer {
     int64_t rank, rdma_rank, nvl_rank;

@@ -13,6 +13,22 @@
 #include "pytorch_npu_helper.hpp"
 
 namespace deep_ep {
+
+std::map<std::string, std::string> resolve_op_api_libraries()
+{
+    std::map<std::string, std::string> result;
+    for (const char *name : {"aclnnMoeLowLatencyDispatchV2", "aclnnMoeLowLatencyDispatchV2GetWorkspaceSize",
+                             "aclnnMoeLowLatencyCombineV2", "aclnnMoeLowLatencyCombineV2GetWorkspaceSize"}) {
+        void *address = GetDeepEpOpApiFuncAddr(name);
+        TORCH_CHECK(address != nullptr, "DeepEP API symbol is unavailable: ", name);
+        Dl_info info{};
+        TORCH_CHECK(dladdr(address, &info) != 0 && info.dli_fname != nullptr,
+                    "Could not identify DeepEP API library for ", name);
+        result.emplace(name, info.dli_fname);
+    }
+    return result;
+}
+
 constexpr int PADDING_SIZE = 1;
 constexpr size_t HCOMM_NAME_LEN = 128;
 constexpr int64_t NO_SCALES = 0;

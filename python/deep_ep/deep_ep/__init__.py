@@ -19,6 +19,7 @@ import ctypes
 
 _cust_lib = os.path.join(lib_path, "libcust_opapi.so")
 if os.path.exists(_cust_lib):
+    os.environ.setdefault("SGLANG_DEEPEP_OP_API_LIBRARY", _cust_lib)
     try:
         ctypes.CDLL(_cust_lib)
     except OSError:

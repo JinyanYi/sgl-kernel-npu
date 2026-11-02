@@ -1,5 +1,14 @@
 # DeepEP-Ascend
 
+For the A5 LIM + CopySFA joint branch, the host bridge resolves its vendor API
+through `SGLANG_DEEPEP_OP_API_LIBRARY`, an absolute path set by the package or
+launcher. This avoids collisions with another vendor's `libcust_opapi.so`.
+`deep_ep_cpp.resolve_op_api_libraries()` reports the actual V2 dispatch/combine
+DSOs without executing NPU operators. A host-only rebuild can reuse an
+installed vendor via `SGL_DEEPEP_PREBUILT_VENDOR=/absolute/vendor/path`; the
+build records and verifies every copied file hash. The normal build default
+still compiles the selected DeepEP device operators.
+
 <div align="center">
 
 [![Platform](https://img.shields.io/badge/Platform-A2%20%7C%20A3%20%7C%20A5-blue)]()

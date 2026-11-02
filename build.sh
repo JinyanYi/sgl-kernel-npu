@@ -541,6 +541,14 @@ function build_deepep_kernels()
     local custom_opp_dir="${PROJECT_ROOT}/python/deep_ep/deep_ep"
     local custom_opp_file=""
 
+    if [[ -n "${SGL_DEEPEP_PREBUILT_VENDOR:-}" ]]; then
+        echo "Reusing installed DeepEP device vendor; rebuilding host bridge only"
+        python3 "$PROJECT_ROOT/tools/deepep_vendor.py" \
+            --source "$SGL_DEEPEP_PREBUILT_VENDOR" --package-root "$custom_opp_dir" \
+            --receipt "$OUTPUT_DIR/deepep-vendor-reuse.json"
+        return
+    fi
+
     if [[ "$DEEPEP_VARIANT" == "deepep2" ]]; then
         kernel_dir="${PROJECT_ROOT}/csrc/deepep/ops2"
     else
