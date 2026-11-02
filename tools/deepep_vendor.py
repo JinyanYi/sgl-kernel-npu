@@ -3,8 +3,10 @@
 
 import argparse
 import hashlib
+import importlib.util
 import json
 import shutil
+import sys
 from pathlib import Path
 
 
@@ -54,6 +56,53 @@ def stage(source, package_root):
     return dict(source=str(source), destination=str(target), files=before)
 
 
+def compare(source, target, baseline_receipt=None):
+    before = manifest(source)
+    after = manifest(target)
+    if baseline_receipt is not None:
+        saved = json.loads(Path(baseline_receipt).read_text())["files"]
+        if saved != before:
+            raise ValueError("Original vendor backup differs from its saved receipt")
+    differing = sorted(
+        path
+        for path in before.keys() | after.keys()
+        if before.get(path) != after.get(path)
+    )
+    generated = []
+    protected = []
+    for path in differing:
+        source_path = None
+        if Path(path).suffix == ".pyc" and Path(path).parent.name == "__pycache__":
+            try:
+                source_path = Path(
+                    importlib.util.source_from_cache(str(Path(path)))
+                ).as_posix()
+            except ValueError:
+                pass
+        # pip compiles installed Python sources. Bytecode is regenerable only
+        # when its corresponding source exists and is byte-identical on both sides.
+        if source_path in before and before[source_path] == after.get(source_path):
+            generated.append(path)
+        else:
+            protected.append(path)
+    return dict(
+        status="payload_changed" if protected else "identical_payload",
+        source=str(Path(source).resolve()),
+        target=str(Path(target).resolve()),
+        baseline_receipt=str(baseline_receipt) if baseline_receipt else None,
+        source_files=len(before),
+        installed_files=len(after),
+        ignored_generated_bytecode=generated,
+        added=[path for path in protected if path not in before],
+        missing=[path for path in protected if path not in after],
+        changed=[
+            dict(path=path, expected_sha256=before[path], actual_sha256=after[path])
+            for path in protected
+            if path in before and path in after
+        ],
+    )
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--source", required=True, type=Path)
@@ -61,12 +110,19 @@ def main():
     mode.add_argument("--package-root", type=Path)
     mode.add_argument("--compare", type=Path)
     parser.add_argument("--receipt", type=Path)
+    parser.add_argument("--baseline-receipt", type=Path)
     args = parser.parse_args()
     if args.compare:
-        before = manifest(args.source)
-        if manifest(args.compare) != before:
-            raise ValueError("DeepEP vendor bytes changed")
-        print(json.dumps(dict(status="identical", files=len(before))))
+        result = compare(args.source, args.compare, args.baseline_receipt)
+        if args.receipt:
+            args.receipt.write_text(json.dumps(result, indent=2) + "\n")
+        print(json.dumps(result, indent=2), flush=True)
+        if result["status"] == "payload_changed":
+            print(
+                "DeepEP vendor bytes changed: protected payload differs",
+                file=sys.stderr,
+            )
+            return 1
     else:
         result = stage(args.source, args.package_root)
         if args.receipt:
@@ -77,4 +133,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())
