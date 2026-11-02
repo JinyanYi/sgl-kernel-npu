@@ -1,6 +1,9 @@
 {
   "donor_repository": "https://github.com/McZyWu/sgl-kernel-npu",
   "donor_revision": "e53e8d8df1d4f25be7c0d40b6fa8234c8750f1fc",
+  "donor_branch": "feat/hisparse-c8-a5-original-10-30",
+  "donor_commit_time": "2026-10-31T17:08:59+08:00",
+  "original_opp_restore_revision": "84fa315d98ed98954c468e0431c4005605f642ba",
   "lim_upstream_revision": "7d5a4cd9d7e8c4e2e4f0f6415a71f0e80edcff8e",
   "copysfa_validated_revision": "907a2863117f0a17ab609cf4e49965e638b0876b",
   "protected_objects": {
