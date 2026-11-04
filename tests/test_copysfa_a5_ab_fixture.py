@@ -22,6 +22,53 @@ def test_matrix_is_complete_and_unique():
     }
 
 
+@pytest.mark.parametrize(
+    ("width", "expected_copy_path"),
+    [
+        (2, "fused"),
+        (3, "fused"),
+        (5, "fused"),
+        (6, "union_copy"),
+        (8, "union_copy"),
+        (14, "union_copy"),
+    ],
+)
+def test_general_query_width_fixture_and_causal_golden(width, expected_copy_path):
+    config = fixture.Config(
+        capacity=32384,
+        query_width=width,
+        hit_percent=95,
+        batch=1,
+        heads=8,
+        prefix=65536,
+        shared_dram=True,
+    )
+    data, metrics = fixture.make_fixture(config)
+
+    assert data["query"].shape == (width, config.heads, 576)
+    assert data["src"].shape == data["dst"].shape == (width, 1, fixture.K)
+    assert data["query_ends"].tolist() == [width]
+    assert metrics[0]["expected_copy_path"] == expected_copy_path
+    assert bool(torch.isfinite(data["golden"]).all())
+    assert float(data["golden"].abs().mean()) > 0.1
+
+    for route in range(width):
+        sources = data["src"][route, 0].long()
+        destinations = data["dst"][route, 0].long()
+        visible = int(data["lengths"][0]) - width + route + 1
+        assert bool(((sources >= 0) & (sources < visible)).all())
+        torch.testing.assert_close(
+            data["expected"].view(-1, fixture.ROW_BYTES)[
+                fixture.physical(data["hbm_table"], 0, destinations)
+            ],
+            data["dram"].view(-1, fixture.ROW_BYTES)[
+                fixture.physical(data["dram_table"], 0, sources)
+            ],
+            rtol=0,
+            atol=0,
+        )
+
+
 @pytest.mark.parametrize("width", [1, 4])
 @pytest.mark.parametrize("hit", [91, 95])
 def test_hit_rates_payloads_and_causality(width, hit):

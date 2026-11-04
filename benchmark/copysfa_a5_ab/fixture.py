@@ -99,8 +99,8 @@ def make_fixture(config: Config):
         config.heads,
         config.prefix,
     )
-    if q not in (1, 4) or c < q * K or c > 32384 or c % PAGE:
-        raise ValueError("Q1/Q4 needs aligned capacity >= Q*2048 and <=32384")
+    if not 1 <= q <= 16 or c > 32384 or c % PAGE:
+        raise ValueError("Q1..Q16 needs aligned capacity <=32384")
     if prefix % PAGE or prefix <= c or prefix + 128 > 262144:
         raise ValueError("Prefix must be page aligned, exceed C and fit source tables")
     if config.hit_percent not in (91, 95) or h not in (8, 16, 32, 64, 128) or b < 1:
@@ -109,7 +109,18 @@ def make_fixture(config: Config):
         raise ValueError("Compute dtype must be bfloat16 or float16")
     dtype = getattr(torch, config.dtype)
     generator = torch.Generator().manual_seed(18490 + c + q)
-    tail_end = 129 if q == 4 else 127
+    tail_end = 129 if q > 1 else 127
+    tail_counts = [tail_end - q + route + 1 for route in range(q)]
+    common_count = (
+        min(K - tail for tail in tail_counts) * config.query_overlap_percent // 100
+    )
+    if not 0 <= config.query_overlap_percent <= 100:
+        raise ValueError("Query overlap percent must be in [0,100]")
+    union_size = common_count + sum(K - tail - common_count for tail in tail_counts)
+    if c < union_size:
+        raise ValueError(
+            f"Capacity {c} is smaller than the selected-prefix union {union_size}"
+        )
     length, source_rows = prefix + tail_end, prefix + 256
     dram_pages, hbm_pages = source_rows // PAGE, (c + 256) // PAGE
     banks = 1 if config.shared_dram else b
@@ -148,13 +159,6 @@ def make_fixture(config: Config):
         if config.padding and row == b // 2:
             lengths[row] = cache_lengths[row] = 0
             continue
-        tail_counts = [tail_end - q + route + 1 for route in range(q)]
-        common_count = (
-            min(K - tail for tail in tail_counts) * config.query_overlap_percent // 100
-        )
-        if not 0 <= config.query_overlap_percent <= 100:
-            raise ValueError("Query overlap percent must be in [0,100]")
-        union_size = common_count + sum(K - tail - common_count for tail in tail_counts)
         miss_count = (
             config.forced_misses
             if config.forced_misses is not None

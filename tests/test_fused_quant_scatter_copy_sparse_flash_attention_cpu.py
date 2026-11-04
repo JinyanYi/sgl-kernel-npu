@@ -85,7 +85,8 @@ def test_a5_copy_sfa_registration_has_no_lim_or_vllm_dependency() -> None:
     root = Path(__file__).parents[1]
     cmake = (root / "csrc" / "CMakeLists.txt").read_text()
     start = cmake.index("# C8 CopySFA is A5-only")
-    end = cmake.index("# create shared library", start)
+    # LIM is packaged independently after the CopySFA build block.
+    end = cmake.index("set(SGL_KERNEL_A5_C8_ORIGINAL_SOURCE", start)
     copy_sfa_build = cmake[start:end]
     registration = (root / "csrc" / "a5_copy_sfa_registration.cpp").read_text()
 

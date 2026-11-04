@@ -2,3 +2,4 @@
 # reproducible even when the checkout has core.autocrlf enabled.
 csrc/fused_quant_scatter_copy_sparse_flash_attention/op_kernel/** -text
 csrc/utils/owned_kernel_launch.h -text
+benchmark/copysfa_a5_ab/reference/vendor/json-LICENSE-MIT.txt text eol=lf

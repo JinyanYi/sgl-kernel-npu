@@ -1,4 +1,4 @@
-"""A5-only Q4, graph, padding and metadata tests for C8 CopySFA.
+"""A5-only general-query, graph, padding and metadata tests for C8 CopySFA.
 
 The numerical tests require a wheel built for Ascend950 and registered host
 memory. They intentionally construct CopySFA metadata directly and have no LIM
@@ -7,7 +7,10 @@ or vLLM runtime dependency. They were added without local A5 execution.
 
 from __future__ import annotations
 
+import importlib.util
 import math
+import sys
+from pathlib import Path
 
 import pytest
 import torch
@@ -25,6 +28,17 @@ from fused_quant_scatter_copy_sparse_flash_attention_golden import (  # noqa: E4
     make_packed_bytes,
     unpack_rows,
 )
+
+_fixture_path = Path(__file__).parents[1] / "benchmark/copysfa_a5_ab/fixture.py"
+_fixture_spec = importlib.util.spec_from_file_location(
+    "copysfa_a5_general_query_fixture", _fixture_path
+)
+assert _fixture_spec is not None and _fixture_spec.loader is not None
+general_query_fixture = importlib.util.module_from_spec(_fixture_spec)
+sys.modules[_fixture_spec.name] = general_query_fixture
+_fixture_spec.loader.exec_module(general_query_fixture)
+
+GENERAL_QUERY_WIDTHS = (2, 3, 5, 6, 8, 14)
 
 
 @pytest.fixture()
@@ -239,6 +253,94 @@ class _Q4CopySfaCase:
             free_shm(0)
 
 
+class _GeneralQueryCopySfaCase:
+    def __init__(self, query_width: int):
+        from sgl_kernel_npu.sparsity_driven_kv_offload import create_shm_tensor
+
+        self.device = torch.device("npu:0")
+        torch.npu.set_device(self.device)
+        config = general_query_fixture.Config(
+            capacity=32384,
+            query_width=query_width,
+            hit_percent=95,
+            batch=1,
+            heads=8,
+            prefix=65536,
+            shared_dram=True,
+        )
+        data, metrics = general_query_fixture.make_fixture(config)
+        self.copy_path = metrics[0]["expected_copy_path"]
+        self.expected_hbm = data["expected"]
+        self.expected_attention = data["golden"]
+
+        self.dram_owner, _, self.dram_dev_ptr = create_shm_tensor(
+            data["dram"].shape, torch.int8, device_id=0
+        )
+        self.dram_owner.copy_(data["dram"])
+        self.dram_before = self.dram_owner.clone()
+        self.inputs = {
+            name: tensor.to(self.device)
+            for name, tensor in data.items()
+            if name not in ("dram", "expected", "golden")
+        }
+        self.hbm = self.inputs["initial"].clone()
+        self.output = torch.empty_like(self.inputs["query"][..., :NOPE_DIM])
+
+    def reset(self) -> None:
+        self.hbm.copy_(self.inputs["initial"])
+        self.output.fill_(float("nan"))
+
+    def enqueue(self) -> None:
+        torch.ops.npu.fused_quant_scatter_copy_sparse_flash_attention(
+            self.inputs["query"],
+            self.hbm,
+            self.dram_owner,
+            self.dram_dev_ptr,
+            self.inputs["hbm_table"],
+            self.inputs["dram_table"],
+            self.inputs["dst"],
+            self.inputs["src"],
+            self.inputs["route_misses"],
+            self.inputs["query_ends"],
+            self.inputs["lengths"],
+            self.inputs["cache_lengths"],
+            self.inputs["miss_src"],
+            self.inputs["miss_dst"],
+            self.inputs["misses"],
+            1.0 / math.sqrt(NOPE_DIM + 64),
+            self.output,
+        )
+
+    def check(self, label: str) -> None:
+        torch.testing.assert_close(
+            self.hbm.cpu(), self.expected_hbm, rtol=0, atol=0, msg=f"{label} cache"
+        )
+        actual = self.output.cpu().float()
+        assert bool(torch.isfinite(actual).all()), f"{label} produced non-finite output"
+        torch.testing.assert_close(
+            actual,
+            self.expected_attention,
+            rtol=0.02,
+            atol=0.005,
+            msg=f"{label} attention",
+        )
+        relative_l2 = (actual - self.expected_attention).flatten(1).norm(
+            dim=1
+        ) / self.expected_attention.flatten(1).norm(dim=1).clamp_min(1e-7)
+        assert float(relative_l2.max()) <= 0.08, (
+            f"{label} max_rel_l2={float(relative_l2.max()):.6f}"
+        )
+        torch.testing.assert_close(self.dram_owner, self.dram_before, rtol=0, atol=0)
+
+    def close(self) -> None:
+        from sgl_kernel_npu.sparsity_driven_kv_offload import free_shm
+
+        try:
+            torch.npu.synchronize()
+        finally:
+            free_shm(0)
+
+
 def test_q4_eager_switches_between_fused_and_union_copy(require_a5_device) -> None:
     case = _Q4CopySfaCase()
     try:
@@ -265,6 +367,42 @@ def test_q4_graph_replay_uses_device_side_512_gate(require_a5_device) -> None:
             graph.replay()
             torch.npu.synchronize()
             case.check()
+    finally:
+        case.close()
+
+
+@pytest.mark.parametrize(
+    "query_width", GENERAL_QUERY_WIDTHS, ids=lambda query_width: f"q{query_width}"
+)
+def test_general_query_eager_accuracy(require_a5_device, query_width: int) -> None:
+    case = _GeneralQueryCopySfaCase(query_width)
+    try:
+        case.reset()
+        case.enqueue()
+        torch.npu.synchronize()
+        case.check(f"Q{query_width} eager ({case.copy_path})")
+    finally:
+        case.close()
+
+
+@pytest.mark.parametrize(
+    "query_width", GENERAL_QUERY_WIDTHS, ids=lambda query_width: f"q{query_width}"
+)
+def test_general_query_graph_accuracy(require_a5_device, query_width: int) -> None:
+    if not hasattr(torch.npu, "NPUGraph") or not hasattr(torch.npu, "graph"):
+        pytest.skip("torch_npu does not expose NPUGraph capture")
+    case = _GeneralQueryCopySfaCase(query_width)
+    try:
+        case.reset()
+        graph = torch.npu.NPUGraph()
+        with torch.npu.graph(graph):
+            case.enqueue()
+        torch.npu.synchronize()
+        case.reset()
+        torch.npu.synchronize()
+        graph.replay()
+        torch.npu.synchronize()
+        case.check(f"Q{query_width} graph ({case.copy_path})")
     finally:
         case.close()
 
