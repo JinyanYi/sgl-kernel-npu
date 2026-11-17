@@ -361,6 +361,7 @@ def _lim_copy_sfa_metadata_kernel(
     HOST_S1: tl.constexpr,
     PACKED_C8: tl.constexpr,
     HAS_DEVICE_SLOTS: tl.constexpr,
+    HBM_REQUEST_OFFSET: tl.constexpr = 0,
 ):
     tile_id = tl.program_id(0).to(tl.int32)
     row_id = tl.program_id(1).to(tl.int32)
@@ -400,7 +401,8 @@ def _lim_copy_sfa_metadata_kernel(
                 col,
                 cache_pages + (prefix // 128 + col - cache_pages) % 2,
             )
-        hbm_values = base_request * HBM_PAGES + physical_col
+        hbm_request = tl.where(is_valid, request_slot - HBM_REQUEST_OFFSET, 0)
+        hbm_values = hbm_request * HBM_PAGES + physical_col
         tl.store(
             hbm_block_table_ptr + hbm_base + col.to(tl.int64),
             hbm_values,
@@ -464,6 +466,7 @@ def fused_lim_copy_sfa_metadata(
     packed_c8: bool = False,
     prefix_lens: torch.Tensor | None = None,
     device_slots: torch.Tensor | None = None,
+    hbm_request_offset: int = 0,
 ) -> None:
     """Resolve C8 lengths, rotated HBM pages and invalid rows in one launch."""
     batch = source_ids.shape[0] // query_width
@@ -497,6 +500,7 @@ def fused_lim_copy_sfa_metadata(
         host_block_table.stride(1) if host_block_table is not None else 0,
         packed_c8,
         device_slots is not None,
+        hbm_request_offset,
     )
 
 
@@ -519,6 +523,7 @@ def _tail_metadata_kernel(
     C: tl.constexpr,
     Q: tl.constexpr,
     HAS_VALID: tl.constexpr,
+    HBM_REQUEST_OFFSET: tl.constexpr = 0,
 ):
     batch = tl.program_id(0)
     request = tl.load(requests + batch).to(tl.int32)
@@ -538,13 +543,14 @@ def _tail_metadata_kernel(
     physical = tl.load(
         req_to_token + safe * REQUEST_STRIDE + pos, mask=restore, other=0
     ).to(tl.int64)
-    dst = safe.to(tl.int64) * (C + 256) + C + pos % 256
+    hbm_request = tl.where(active, request - HBM_REQUEST_OFFSET, 0).to(tl.int64)
+    dst = hbm_request * (C + 256) + C + pos % 256
     tl.store(history_src + batch * 128 + offset, physical)
     tl.store(history_dst + batch * 128 + offset, tl.where(restore, dst, 0))
     tl.store(history_valid + batch * 128 + offset, restore)
     q = tl.arange(0, Q)
     qpos = first + q
-    qdst = safe.to(tl.int64) * (C + 256) + C + qpos % 256
+    qdst = hbm_request * (C + 256) + C + qpos % 256
     tl.store(current_dst + batch * Q + q, tl.where(active, qdst, 0))
     tl.store(current_valid + batch * Q + q, active)
     # The following data copies and consumers all use this ordered stream.
@@ -568,6 +574,7 @@ def stage_mtp_tail(
     context_len,
     query_width=4,
     current_valid=None,
+    hbm_request_offset=0,
 ):
     """Write current candidates locally; restore only missing stable tail rows."""
     from sgl_kernel_npu.sparsity_driven_kv_offload.ops import unidex_copy_inplace
@@ -601,6 +608,7 @@ def stage_mtp_tail(
         capacity,
         query_width,
         current_valid is not None,
+        hbm_request_offset,
     )
     unidex_copy_inplace(
         host,

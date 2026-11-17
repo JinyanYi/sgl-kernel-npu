@@ -15,7 +15,10 @@ pytest.importorskip("torch_npu")
 @pytest.mark.parametrize("width", [1, 4])
 @pytest.mark.parametrize("graph_replay", [False, True])
 @pytest.mark.parametrize("capacity", [8192, 16384, 32384])
-def test_packed_tail_acceptance_reuse_and_page_crossing(width, graph_replay, capacity):
+@pytest.mark.parametrize("hbm_request_offset", [0, 1])
+def test_packed_tail_acceptance_reuse_and_page_crossing(
+    width, graph_replay, capacity, hbm_request_offset
+):
     from sgl_kernel_npu.sparsity_driven_kv_offload.c8_metadata import (
         stage_mtp_tail,
     )
@@ -40,16 +43,20 @@ def test_packed_tail_acceptance_reuse_and_page_crossing(width, graph_replay, cap
         physical = (page_ids[:, None] * 128 + torch.arange(128)[None]).flatten()
         mapping_cpu = torch.zeros(request_rows, context, dtype=torch.int64)
         mapping_cpu[1].copy_(physical)
-        mapping_cpu[2].copy_(context + physical)
+        mapping_cpu[3].copy_(context + physical)
         # Prefix aliases are the same physical rows in host memory. Hot pools
         # and current speculative writes must remain private to each request.
-        mapping_cpu[2, :capacity].copy_(mapping_cpu[1, :capacity])
+        mapping_cpu[3, :capacity].copy_(mapping_cpu[1, :capacity])
         mapping = mapping_cpu.to("npu")
-        requests = torch.tensor([1, 2, 0], dtype=torch.int64, device="npu")
+        live_requests = [1, 3]
+        requests = torch.tensor([*live_requests, 0], dtype=torch.int64, device="npu")
         positions = torch.zeros(batch * width, dtype=torch.int64, device="npu")
         current = torch.empty(batch * width, 1, 656, dtype=torch.int8, device="npu")
         cache = torch.full(
-            (request_rows, capacity + 256, 1, 656), -17, dtype=torch.int8, device="npu"
+            (request_rows - hbm_request_offset, capacity + 256, 1, 656),
+            -17,
+            dtype=torch.int8,
+            device="npu",
         )
         starts = torch.full((request_rows + 1,), -1, dtype=torch.int32, device="npu")
         ends = torch.full_like(starts, -1)
@@ -73,6 +80,7 @@ def test_packed_tail_acceptance_reuse_and_page_crossing(width, graph_replay, cap
                 capacity=capacity,
                 context_len=context,
                 query_width=width,
+                hbm_request_offset=hbm_request_offset,
             )
 
         positions.copy_(
@@ -100,7 +108,7 @@ def test_packed_tail_acceptance_reuse_and_page_crossing(width, graph_replay, cap
                     accepted = 1 + (step + row) % width
                     for offset in range(accepted):
                         position = previous_firsts[row] + offset
-                        host[mapping_cpu[row + 1, position]].copy_(
+                        host[mapping_cpu[live_requests[row], position]].copy_(
                             previous_current[row * width + offset]
                         )
                     firsts[row] = previous_firsts[row] + accepted
@@ -124,19 +132,23 @@ def test_packed_tail_acceptance_reuse_and_page_crossing(width, graph_replay, cap
             torch.npu.synchronize()
             result = cache.cpu()
             for row, first in enumerate(firsts):
+                request = live_requests[row]
+                physical_row = request - hbm_request_offset
                 prefix = first // 128 * 128
                 for position in range(prefix, first):
                     assert torch.equal(
-                        result[row + 1, capacity + position % 256],
-                        host[mapping_cpu[row + 1, position]],
+                        result[physical_row, capacity + position % 256],
+                        host[mapping_cpu[request, position]],
                     ), (step, row, position)
                 for offset in range(width):
                     assert torch.equal(
-                        result[row + 1, capacity + (first + offset) % 256],
+                        result[physical_row, capacity + (first + offset) % 256],
                         cpu_current[row * width + offset],
                     ), (step, row, offset)
-            assert bool((result[0] == -17).all())
-            assert bool((result[3] == -17).all())
+            for request in set(range(hbm_request_offset, request_rows)) - set(
+                live_requests
+            ):
+                assert bool((result[request - hbm_request_offset] == -17).all())
             assert bool((result[:, :capacity] == -17).all())
             previous = (list(firsts), cpu_current)
     finally:

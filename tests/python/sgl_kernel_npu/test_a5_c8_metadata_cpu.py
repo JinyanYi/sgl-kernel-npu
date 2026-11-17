@@ -190,9 +190,13 @@ def test_pre_metadata_page_crossing(width, full_visible, first):
 
 
 @pytest.mark.parametrize("width", [1, 4])
-@pytest.mark.parametrize("packed", [False, True])
+@pytest.mark.parametrize(
+    "packed,hbm_request_offset", [(False, 0), (True, 0), (True, 1)]
+)
 @pytest.mark.parametrize("first", [8192, 8319, 8320])
-def test_post_metadata_rotates_physical_ring_only(width, packed, first):
+def test_post_metadata_rotates_physical_ring_only(
+    width, packed, hbm_request_offset, first
+):
     kernel = load("c8_metadata")._lim_copy_sfa_metadata_kernel
     batch, capacity, pages = 3, 8192, 80
     hp = capacity // 128 + (2 if packed else 0)
@@ -202,7 +206,7 @@ def test_post_metadata_rotates_physical_ring_only(width, packed, first):
     counts = torch.full((batch,), 19, dtype=torch.int32)
     valid = torch.tensor([True, True, False])
     sparse = torch.tensor([True, False, False])
-    slots = torch.tensor([1, 2, 4], dtype=torch.int32)
+    slots = torch.tensor([1, 3, 4], dtype=torch.int32)
     final = torch.tensor([first + width, 2000, 0], dtype=torch.int32)
     prefix = torch.tensor([first // 128 * 128, 1920, 0], dtype=torch.int32)
     kv, cache = torch.empty_like(final), torch.empty_like(final)
@@ -241,6 +245,7 @@ def test_post_metadata_rotates_physical_ring_only(width, packed, first):
         1,
         packed,
         True,
+        hbm_request_offset,
     )
     assert kv.tolist() == [int(final[0]) if packed else capacity + width - 1, 2000, 0]
     assert cache.tolist() == [
@@ -249,7 +254,7 @@ def test_post_metadata_rotates_physical_ring_only(width, packed, first):
         0,
     ]
     for b in range(batch):
-        base = int(slots[b]) * hp if valid[b] else 0
+        base = (int(slots[b]) - hbm_request_offset) * hp if valid[b] else 0
         expected = list(range(base, base + hp))
         if packed:
             expected[-2:] = [
@@ -264,3 +269,74 @@ def test_post_metadata_rotates_physical_ring_only(width, packed, first):
     assert torch.all(device_slots[2 * width :] == -1)
     torch.testing.assert_close(dram[:2], host[:2], rtol=0, atol=0)
     assert not dram[2].count_nonzero()
+
+
+@pytest.mark.parametrize("width", [1, 4])
+@pytest.mark.parametrize("hbm_request_offset", [0, 1])
+def test_tail_destinations_cover_last_request_and_ignore_padding(
+    width, hbm_request_offset
+):
+    kernel = load("c8_metadata")._tail_metadata_kernel
+    rows, batch, capacity, context = 4, 4, 8192, 8704
+    stride = capacity + 256
+    requests = torch.tensor([1, rows - 1, 0, rows], dtype=torch.int32)
+    mapping = torch.arange(rows * context, dtype=torch.int32).reshape(rows, context)
+    starts = torch.full((rows + 1,), -1, dtype=torch.int32)
+    ends = torch.full_like(starts, -1)
+    hs = torch.empty(batch * 128, dtype=torch.int64)
+    hd, hv = torch.empty_like(hs), torch.empty_like(hs, dtype=torch.bool)
+    cd = torch.empty(batch * width, dtype=torch.int64)
+    cv = torch.empty_like(cd, dtype=torch.bool)
+    publication_valid = torch.ones(batch * width, dtype=torch.bool)
+
+    for first in (capacity + 125, capacity + 127, capacity + 256, capacity + 3):
+        positions = (first + torch.arange(width)).repeat(batch).long()
+        previous_start, previous_end = starts.clone(), ends.clone()
+        kernel[(batch,)](
+            mapping,
+            requests,
+            positions,
+            publication_valid,
+            starts,
+            ends,
+            hs,
+            hd,
+            hv,
+            cd,
+            cv,
+            rows,
+            context,
+            context,
+            capacity,
+            width,
+            True,
+            hbm_request_offset,
+        )
+        prefix = first // 128 * 128
+        for b, request in enumerate(requests.tolist()):
+            history = slice(b * 128, (b + 1) * 128)
+            current = slice(b * width, (b + 1) * width)
+            if not 0 < request < rows:
+                assert not hv[history].any() and not cv[current].any()
+                continue
+            missing = [
+                p
+                for p in range(prefix, first)
+                if not previous_start[request] <= p < previous_end[request]
+            ]
+            assert (
+                hs[history][hv[history]].tolist() == mapping[request, missing].tolist()
+            )
+            base = (request - hbm_request_offset) * stride + capacity
+            assert hd[history][hv[history]].tolist() == [
+                base + p % 256 for p in missing
+            ]
+            assert cd[current].tolist() == [
+                base + (first + q) % 256 for q in range(width)
+            ]
+            assert cv[current].all()
+            assert starts[request] == prefix and ends[request] == first + width
+        assert starts[0] == starts[rows] == ends[0] == ends[rows] == -1
+        valid_destinations = torch.cat((hd[hv], cd[cv]))
+        assert valid_destinations.min() >= 0
+        assert valid_destinations.max() < (rows - hbm_request_offset) * stride
