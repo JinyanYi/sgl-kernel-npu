@@ -3,8 +3,8 @@
 `torch.ops.npu.fused_quant_scatter_copy_sparse_flash_attention` is an A5-only
 normal-wheel operator ported from [vllm-ascend #18490](https://github.com/vllm-project/vllm-ascend/pull/18490),
 commit `1b180deb840484c2fe33cbdd7abb68a615085172`. Donor source hashes and retained
-licenses are recorded alongside the imported payloads. Build the Ascend950 wheel
-with `bash build.sh -a kernels Ascend950`.
+licenses are recorded alongside the imported payloads. Use the explicit SoC
+for the target, for example `bash build.sh -a kernels Ascend950DT_9582`.
 
 The API takes:
 
@@ -21,12 +21,11 @@ Supported head counts are 8, 16, 32, 64, and 128. Both KV tensors are opaque INT
 byte views `[pages,128,1,656]`: 512 FP8 NoPE bytes, 128 BF16 RoPE bytes, then
 16 FP32 scale bytes. Copy preserves all 656 bytes.
 
-The direct-launch adaptation accepts the owning CPU Tensor returned by
-`create_shm_tensor` plus its registered device-visible address. HBM, query,
-metadata and output remain on one NPU. This preserves the existing SGLang DRAM
-allocator and avoids an HBM copy masquerading as offload. The caller must retain
-registered storage throughout capture/replay and synchronize before `free_shm`.
-The host also retains Tensor/workspace owners while a launch is queued.
+The direct launch accepts a CPU tensor and its registered device-visible
+address. HBM, query, metadata and output remain on one NPU. The caller must
+retain registered storage throughout capture/replay and synchronize before
+releasing it. The host also retains tensor and workspace owners while a
+launch is queued.
 
 `num_cache_tokens=0` means dense, using the real sequence length. Otherwise it is
 the exposed HBM logical address-space length. `actual_seq_lengths_kv` remains
@@ -53,17 +52,20 @@ Invalid rows must have zero miss counts and `-1` slots; callers zero their outpu
 because an empty row may leave output unwritten. Query/output storage stays
 BF16/FP16 even though KV storage is C8.
 
+The fully visible entry `fused_quant_scatter_copy_sparse_flash_attention_v2`
+replaces the packed query with separate BF16/FP16 `[T,H,512]` and `[T,H,64]`
+inputs and accepts **`[B,32768]`** request miss arrays. The C8 planner takes
+causal TopK from the platform Quant Lightning Indexer. Long rows share one
+request-union miss list across the query window. Short rows use identity
+slots; the caller stages missing short history and refreshes rewritten current
+KV before launch. For a sparse row, supply `C + Q - 1` as the virtual
+scheduling length and only `C / 128` HBM pages. The v2 kernel completes the
+union copy before attention, and accepts LI order within each query.
+
 ```bash
-python3 -m pytest -q \
-  tests/test_fused_quant_scatter_copy_sparse_flash_attention_cpu.py \
-  tests/test_fused_quant_scatter_copy_sparse_flash_attention.py \
-  tests/test_fused_quant_scatter_copy_sparse_flash_attention_a5.py
+python3 -m pytest -q tests/test_a5_full_visible_planner.py
 ```
 
-The CPU tests preserve an independent attention golden and bitwise 656-byte
-payload oracle over randomized physical page tables. The A5-only tests cover
-Q4 eager and graph replay, the 512/513 device-side transition, shared/random
-DRAM tables, padding isolation, supported heads, and metadata rejection. They
-construct CopySFA metadata directly and do not require LIM or vLLM. Numerical
-execution requires A5; an A3 cross-build does not establish A5 accuracy or
-performance.
+CPU cases verify Q1/Q4 residency, eviction, causal windows and padding. The
+Ascend950 cases compare the mixed short/long v2 output with the platform C8
+attention operator using the same Quant Lightning Indexer selections.
