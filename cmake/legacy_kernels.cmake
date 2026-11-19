@@ -118,6 +118,7 @@ endif()
 # A5-only host sources
 if(SGL_KERNEL_ENABLE_A5_ONLY_OPS)
     list(APPEND OP_SRCS
+        ${PROJECT_OP_SRC_BASE}/attention/fused_quant_lightning_indexer_manage/op_host/fused_quant_lightning_indexer_manage.cpp
         ${PROJECT_OP_SRC_BASE}/attention/fused_quant_scatter_copy_sparse_flash_attention/legacy_registration.cpp
         ${PROJECT_OP_SRC_BASE}/attention/fused_quant_scatter_copy_sparse_flash_attention/op_host/fused_quant_copy_sfa.cpp
         ${PROJECT_OP_SRC_BASE}/kv_compress_epilog/op_host/kv_compress_epilog.cpp
@@ -411,6 +412,24 @@ endif()
 # metadata ABI from the A3 sparse_attn_sharedkv operator.
 set(A5_ONLY_KERNEL_TARGETS)
 if(SGL_KERNEL_ENABLE_A5_ONLY_OPS)
+    ascendc_library(fused_quant_lightning_indexer_manage_a5_kernel STATIC
+        ${PROJECT_OP_SRC_BASE}/attention/fused_quant_lightning_indexer_manage/op_kernel/fused_quant_lightning_indexer_manage.cpp
+    )
+    target_compile_definitions(fused_quant_lightning_indexer_manage_a5_kernel_host_stub_obj PRIVATE
+        LaunchAscendKernel=LaunchFullVisibleLimKernel
+    )
+    ascendc_compile_definitions(fused_quant_lightning_indexer_manage_a5_kernel PRIVATE
+        -DHAVE_WORKSPACE
+        -DHAVE_TILING
+    )
+    ascendc_compile_options(fused_quant_lightning_indexer_manage_a5_kernel PRIVATE
+        --cce-auto-sync=off
+        -Wno-deprecated-declarations
+        "SHELL:-mllvm -cce-vf-remove-membar=false"
+        "SHELL:-mllvm -cce-aicore-hoist-movemask=false"
+    )
+    list(APPEND A5_ONLY_KERNEL_TARGETS fused_quant_lightning_indexer_manage_a5_kernel)
+
     ascendc_library(fused_quant_scatter_copy_sparse_flash_attention_a5_kernel STATIC
         ${PROJECT_OP_SRC_BASE}/attention/fused_quant_scatter_copy_sparse_flash_attention/op_kernel/fused_quant_scatter_copy_sparse_flash_attention.cpp
     )

@@ -54,8 +54,9 @@ BF16/FP16 even though KV storage is C8.
 
 The fully visible entry `fused_quant_scatter_copy_sparse_flash_attention_v2`
 replaces the packed query with separate BF16/FP16 `[T,H,512]` and `[T,H,64]`
-inputs and accepts **`[B,32768]`** request miss arrays. The C8 planner takes
-causal TopK from the platform Quant Lightning Indexer. Long rows share one
+inputs and accepts **`[B,32768]`** request miss arrays. The
+[fully visible A5 LIM](../fused_quant_lightning_indexer_manage/README.md)
+produces the causal TopK and copy plan in one launch. Long rows share one
 request-union miss list across the query window. Short rows use identity
 slots; the caller stages missing short history and refreshes rewritten current
 KV before launch. For a sparse row, supply `C + Q - 1` as the virtual
@@ -66,6 +67,8 @@ union copy before attention, and accepts LI order within each query.
 python3 -m pytest -q tests/test_a5_full_visible_planner.py
 ```
 
-CPU cases verify Q1/Q4 residency, eviction, causal windows and padding. The
-Ascend950 cases compare the mixed short/long v2 output with the platform C8
-attention operator using the same Quant Lightning Indexer selections.
+CPU cases exercise the reference planner and the BF16 cutoff check. Ascend950
+cases compare each Q1/Q4 TopK set with native Quant Lightning Indexer on
+identical index inputs, allowing only substitutions tied at the cutoff.
+The cases cover source IDs beyond 131072 and check CopySFA v2 against the
+platform C8 attention operator using the same selections.

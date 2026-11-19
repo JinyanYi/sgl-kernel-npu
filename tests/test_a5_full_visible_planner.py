@@ -13,6 +13,49 @@ planner = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(planner)
 
 
+def _a5_li_score_keys(query, key, weights, query_scale, key_scale):
+    scores = (key.float() @ query.float().T).relu()
+    scores = (scores @ (weights.float() * query_scale)) * key_scale
+    # A5 uses CAST_ROUND when forming BF16 sort keys. These scores are
+    # nonnegative, so adding the half-ULP before truncation rounds ties up.
+    return (scores.contiguous().view(torch.int32) + 0x8000) >> 16
+
+
+def _assert_only_cutoff_ties(selected, native, score_keys, label):
+    cutoff = min(score_keys[source] for source in native)
+    wrong = sorted(
+        source for source in selected ^ native if score_keys[source] != cutoff
+    )
+    assert not wrong, (
+        f"{label}: {len(wrong)} non-tie TopK differences, "
+        f"cutoff={cutoff:#06x}, "
+        f"fused_only={sorted(selected - native)[:8]}, "
+        f"native_only={sorted(native - selected)[:8]}, "
+        f"non_tie_keys={[(source, hex(score_keys[source])) for source in wrong[:8]]}"
+    )
+
+
+def test_a5_topk_score_key_rounds_bf16_midpoints_up():
+    scores = _a5_li_score_keys(
+        torch.ones((1, 1)),
+        torch.ones((3, 1)),
+        torch.ones(1),
+        torch.ones(1),
+        torch.tensor([1.0, 1.0 + 1 / 256, 1.0 + 1 / 128]),
+    )
+    assert scores.tolist() == [0x3F80, 0x3F81, 0x3F81]
+
+
+def test_a5_topk_parity_only_accepts_cutoff_ties():
+    native = {0, 1, 2}
+    scores = {0: 5, 1: 5, 2: 3, 3: 3, 4: 2, 5: 5}
+    _assert_only_cutoff_ties({0, 1, 3}, native, scores, "cutoff tie")
+    with pytest.raises(AssertionError, match="non-tie TopK differences"):
+        _assert_only_cutoff_ties({0, 1, 4}, native, scores, "below cutoff")
+    with pytest.raises(AssertionError, match="non-tie TopK differences"):
+        _assert_only_cutoff_ties({0, 2, 5}, native, scores, "above cutoff")
+
+
 @pytest.mark.parametrize("width", [1, 4])
 @pytest.mark.parametrize("device", ["cpu", "npu"])
 def test_fully_visible_plan_tracks_one_union_across_query_routes(width, device):
@@ -92,8 +135,13 @@ def test_fully_visible_plan_tracks_one_union_across_query_routes(width, device):
 
 
 @pytest.mark.parametrize("width", [1, 4])
-def test_a5_quant_li_full_visible_copysfa_matches_native_attention(width):
-    """Compare a mixed short/long batch with the native packed C8 attention."""
+@pytest.mark.parametrize(
+    "long_length,graph", [(8199, False), (140001, False), (140001, True)]
+)
+def test_a5_fused_lim_full_visible_copysfa_matches_native_attention(
+    width, long_length, graph
+):
+    """Check native LI TopK, cold fill, graph replay and C8 attention."""
     torch_npu = pytest.importorskip("torch_npu")
     import acl
     import sgl_kernel_npu  # noqa: F401
@@ -103,7 +151,8 @@ def test_a5_quant_li_full_visible_copysfa_matches_native_attention(width):
     device = "npu:0"
     dtype = torch.int32
     capacity, page, top_k = 8192, 128, 2048
-    lengths_cpu = [16, capacity + 7]
+    short_length = 16 if long_length < 131072 else 4097
+    lengths_cpu = [short_length, long_length]
     src_pages, dst_pages = (max(lengths_cpu) + page - 1) // page, capacity // page
     total_tokens = 2 * src_pages * page
     rng = torch.Generator().manual_seed(7409)
@@ -111,66 +160,42 @@ def test_a5_quant_li_full_visible_copysfa_matches_native_attention(width):
     def noise(*shape):
         return torch.randn(shape, generator=rng).mul_(0.125)
 
-    li = torch.ops.npu.npu_quant_lightning_indexer
+    def index_values(*shape):
+        # Exact FP8 values with FP32-exact products and accumulation for the
+        # score oracle, independent of the device's reduction order.
+        return torch.randint(-8, 9, shape, generator=rng, dtype=torch.int8).float() / 32
+
+    def scales(*shape):
+        return torch.randint(1, 4, shape, generator=rng).float() / 2
+
     lengths = torch.tensor(lengths_cpu, dtype=dtype, device=device)
     ends = torch.tensor([width, width * 2], dtype=dtype, device=device)
     dram_pages = torch.arange(2 * src_pages, dtype=dtype, device=device).view(2, -1)
     hbm_pages = torch.arange(2 * dst_pages, dtype=dtype, device=device).view(2, -1)
-    li_query = noise(2 * width, 32, 128).to(torch.float8_e4m3fn).to(device)
-    li_key = noise(2 * src_pages, page, 1, 128).to(torch.float8_e4m3fn).to(device)
-    topk = (
-        li(
-            query=li_query,
-            key=li_key,
-            weights=torch.ones((2 * width, 32), dtype=torch.bfloat16, device=device),
-            query_dequant_scale=torch.ones((2 * width, 32), device=device),
-            key_dequant_scale=torch.ones((2 * src_pages, page, 1), device=device),
-            actual_seq_lengths_query=ends,
-            actual_seq_lengths_key=lengths,
-            block_table=dram_pages,
-            layout_query="TND",
-            layout_key="PA_BSND",
-            sparse_count=top_k,
-            sparse_mode=3,
-            query_quant_mode=0,
-            key_quant_mode=0,
-        )
-        .reshape(2, width, top_k)
-        .int()
-    )
-    topk_cpu = topk.cpu()
-    for batch, length in enumerate(lengths_cpu):
-        for q in range(width):
-            visible = length - width + q + 1
-            selected = topk_cpu[batch, q]
-            present = selected[selected >= 0]
-            assert present.numel() == min(top_k, visible)
-            assert present.min() >= 0 and present.max() < visible
-
-    source_map = torch.full((4, src_pages * page + 1), -1, dtype=dtype, device=device)
-    inverse = torch.full((4, capacity + 1), -1, dtype=dtype, device=device)
+    li_query = index_values(2 * width, 32, 128)
+    li_query[..., 0] = 0.75
+    li_key = index_values(total_tokens, 128)
+    # Each route must see its own latest token. Give those tokens clear scores
+    # so cutoff ties cannot obscure the causal boundary and high source IDs.
+    li_key[
+        src_pages * page + long_length - width : src_pages * page + long_length, 0
+    ] = 8
+    li_key_cpu = li_key.to(torch.float8_e4m3fn)
+    del li_key
+    li_key = li_key_cpu.view(-1, page, 1, 128).to(device)
+    weights_cpu = scales(2 * width, 32).to(torch.bfloat16)
+    query_scale_cpu = scales(2 * width, 32)
+    key_scale_cpu = scales(total_tokens)
+    weights = weights_cpu.to(device)
+    query_scale = query_scale_cpu.to(device)
+    key_scale = key_scale_cpu.view(-1, page, 1).to(device)
+    source_map = torch.full((4, src_pages * page), -1, dtype=dtype, device=device)
     sources = torch.empty((2 * width, top_k), dtype=dtype, device=device)
     destinations = torch.empty_like(sources)
     per_query = torch.empty(2 * width, dtype=dtype, device=device)
     miss_sources = torch.empty((2, 32768), dtype=dtype, device=device)
     miss_slots = torch.empty_like(miss_sources)
     miss_counts = torch.empty(2, dtype=dtype, device=device)
-    planner.plan_full_visible_cache(
-        topk,
-        lengths,
-        torch.tensor([1, 2], dtype=dtype, device=device),
-        torch.tensor([False, True], device=device),
-        torch.zeros(2, dtype=torch.bool, device=device),
-        source_map,
-        inverse,
-        sources,
-        destinations,
-        per_query,
-        miss_sources,
-        miss_slots,
-        miss_counts,
-    )
-
     packed = (
         torch.cat(
             (
@@ -186,54 +211,193 @@ def test_a5_quant_li_full_visible_copysfa_matches_native_attention(width):
     hbm = torch.zeros((2 * dst_pages, page, 1, 656), dtype=torch.int8, device=device)
     # Simulate the manager's short history/current staging. CopySFA fills
     # the long request's cold union from the paged source.
-    hbm[:1].copy_(packed[:1])
+    short_pages = (short_length + page - 1) // page
+    hbm[:short_pages].copy_(packed[:short_pages])
     query = noise(2 * width, 8, 576).to(device=device, dtype=torch.bfloat16)
     output = query.new_empty((2 * width, 8, 512))
-    torch.ops.npu.fused_quant_scatter_copy_sparse_flash_attention_v2(
-        query[..., :512].contiguous(),
-        query[..., 512:].contiguous(),
-        hbm,
-        packed,
-        packed.data_ptr(),
-        hbm_pages,
+    cache_sizes = torch.tensor([0, capacity], dtype=dtype, device=device)
+    pool_entries = torch.tensor([1, 2], dtype=dtype, device=device)
+    hbm_lengths = torch.tensor(
+        [short_length, capacity + width - 1], dtype=dtype, device=device
+    )
+    cache = packed.view(torch.float8_e4m3fn)
+    q_index_cpu = li_query.to(torch.float8_e4m3fn)
+    q_index = q_index_cpu.to(device)
+    state = torch.tensor([-3, -2], dtype=dtype, device=device)
+    op = torch.ops.npu.fused_quant_lightning_indexer_manage_full_visible
+    args = (
+        q_index,
+        weights,
+        li_key,
+        query_scale,
+        key_scale,
         dram_pages,
-        destinations.unsqueeze(1),
-        sources.unsqueeze(1),
-        per_query,
         ends,
-        torch.tensor([16, capacity + width - 1], dtype=dtype, device=device),
-        torch.tensor([0, capacity], dtype=dtype, device=device),
+        lengths,
+        cache_sizes,
+        state,
+        pool_entries,
+        source_map,
+        sources,
+        destinations,
+        per_query,
         miss_sources,
         miss_slots,
         miss_counts,
-        576**-0.5,
-        output,
     )
-    cache = packed.view(torch.float8_e4m3fn)
-    reference = torch_npu.npu_kv_quant_sparse_flash_attention(
-        query=query,
-        key=cache,
-        value=cache,
-        sparse_indices=topk.reshape(-1, 1, top_k),
-        scale_value=576**-0.5,
-        key_quant_mode=2,
-        value_quant_mode=2,
-        key_dequant_scale=None,
-        value_dequant_scale=None,
-        actual_seq_lengths_query=ends,
-        actual_seq_lengths_kv=lengths,
-        block_table=dram_pages,
-        sparse_block_size=1,
-        layout_query="TND",
-        layout_kv="PA_BSND",
-        sparse_mode=3,
-        attention_mode=2,
-        quant_scale_repo_mode=1,
-        tile_size=128,
-        rope_head_dim=64,
-    )
-    if isinstance(reference, tuple):
-        reference = reference[0]
-    torch.testing.assert_close(
-        output.cpu().float(), reference.cpu().float(), atol=0.008, rtol=0.05
-    )
+    if graph:
+        op(*args)
+        torch.npu.synchronize()
+        capture = torch.npu.NPUGraph()
+        with torch.npu.graph(capture):
+            op(*args)
+
+    resident_by_slot = {}
+    for step in range(4):
+        if step == 1:
+            state[1] = -1
+        if step == 3:
+            q_index_cpu = (-li_query).to(torch.float8_e4m3fn)
+            q_index.copy_(q_index_cpu.to(device))
+        if step in (0, 3):
+            native_topk = torch.ops.npu.npu_quant_lightning_indexer(
+                query=q_index,
+                key=li_key,
+                weights=weights,
+                query_dequant_scale=query_scale,
+                key_dequant_scale=key_scale,
+                actual_seq_lengths_query=ends,
+                actual_seq_lengths_key=lengths,
+                block_table=dram_pages,
+                layout_query="TND",
+                layout_key="PA_BSND",
+                sparse_count=top_k,
+                sparse_mode=3,
+                query_quant_mode=0,
+                key_quant_mode=0,
+            )
+            native_topk_cpu = native_topk.reshape_as(sources).cpu().tolist()
+        if graph:
+            capture.replay()
+        else:
+            op(*args)
+        short_count, count = miss_counts.tolist()
+        assert short_count == 0
+        assert 0 <= count <= capacity
+        if step == 0:
+            assert count == capacity
+        elif step == 2:
+            assert count == 0
+        elif step == 3 and long_length > 131072:
+            assert count > 0
+        misses = miss_sources[1, :count].tolist()
+        slots = miss_slots[1, :count].tolist()
+        assert len(set(misses)) == len(set(slots)) == count
+        assert all(0 <= slot < capacity for slot in slots)
+        assert all(0 <= source < long_length for source in misses)
+        previous = set(resident_by_slot.values())
+        resident_by_slot.update(zip(slots, misses))
+        assert len(set(resident_by_slot.values())) == capacity
+        assert source_map[[0, 1, 3]].eq(-1).all()
+        assert (source_map[2] >= 0).sum().item() == capacity
+
+        source_cpu = sources.tolist()
+        slot_cpu = destinations.tolist()
+        route_misses = per_query.tolist()
+        selected_union = set()
+        for request, length in enumerate(lengths_cpu):
+            for route in range(width):
+                row = request * width + route
+                visible = length - width + route + 1
+                k = min(top_k, visible)
+                selected = source_cpu[row][:k]
+                assert len(set(selected)) == k
+                assert min(selected) >= 0 and max(selected) < visible
+                assert all(x == -1 for x in source_cpu[row][k:])
+                label = f"Q{width} step={step} request={request} route={route} visible={visible} graph={graph}"
+                native_ids = [source for source in native_topk_cpu[row] if source >= 0]
+                native = set(native_ids)
+                assert len(native_ids) == len(native) == k and max(native) < visible, (
+                    f"{label}: expected {k} unique causal native IDs, "
+                    f"got {len(native)} unique of {len(native_ids)}"
+                )
+                fused = set(selected)
+                if fused != native:
+                    candidates = sorted(fused | native)
+                    # The fixture maps each request to consecutive physical
+                    # pages starting at request * src_pages.
+                    physical = torch.tensor(candidates) + request * src_pages * page
+                    keys = li_key_cpu.view(torch.int8)[physical].view(
+                        torch.float8_e4m3fn
+                    )
+                    scores = _a5_li_score_keys(
+                        q_index_cpu[row],
+                        keys,
+                        weights_cpu[row],
+                        query_scale_cpu[row],
+                        key_scale_cpu[physical],
+                    )
+                    _assert_only_cutoff_ties(
+                        fused, native, dict(zip(candidates, scores.tolist())), label
+                    )
+                if request == 0:
+                    assert slot_cpu[row] == source_cpu[row]
+                else:
+                    selected_union.update(selected)
+                    if step < 3:
+                        assert visible - 1 in selected
+                    assert all(0 <= slot < capacity for slot in slot_cpu[row][:k])
+                    assert [
+                        resident_by_slot[slot] for slot in slot_cpu[row][:k]
+                    ] == selected
+                    assert route_misses[row] == len(set(selected) - previous)
+        if step:
+            assert set(misses) == selected_union - previous
+
+        torch.ops.npu.fused_quant_scatter_copy_sparse_flash_attention_v2(
+            query[..., :512].contiguous(),
+            query[..., 512:].contiguous(),
+            hbm,
+            packed,
+            packed.data_ptr(),
+            hbm_pages,
+            dram_pages,
+            destinations.unsqueeze(1),
+            sources.unsqueeze(1),
+            per_query,
+            ends,
+            hbm_lengths,
+            cache_sizes,
+            miss_sources,
+            miss_slots,
+            miss_counts,
+            576**-0.5,
+            output,
+        )
+        reference = torch_npu.npu_kv_quant_sparse_flash_attention(
+            query=query,
+            key=cache,
+            value=cache,
+            sparse_indices=sources.unsqueeze(1),
+            scale_value=576**-0.5,
+            key_quant_mode=2,
+            value_quant_mode=2,
+            key_dequant_scale=None,
+            value_dequant_scale=None,
+            actual_seq_lengths_query=ends,
+            actual_seq_lengths_kv=lengths,
+            block_table=dram_pages,
+            sparse_block_size=1,
+            layout_query="TND",
+            layout_kv="PA_BSND",
+            sparse_mode=3,
+            attention_mode=2,
+            quant_scale_repo_mode=1,
+            tile_size=128,
+            rope_head_dim=64,
+        )
+        if isinstance(reference, tuple):
+            reference = reference[0]
+        torch.testing.assert_close(
+            output.cpu().float(), reference.cpu().float(), atol=0.008, rtol=0.05
+        )
