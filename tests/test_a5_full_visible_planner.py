@@ -20,7 +20,8 @@ def test_fully_visible_plan_tracks_one_union_across_query_routes(width, device):
         pytest.importorskip("torch_npu")
         if not torch.npu.is_available():
             pytest.skip("No NPU")
-    top_k, capacity, context = 2048, 8192, 32768
+    top_k, context = 2048, 32768
+    capacity = width * top_k
     batch = 3
     dtype = torch.int32
     request_rows = torch.tensor([1, 2, 3], dtype=dtype, device=device)
@@ -34,12 +35,13 @@ def test_fully_visible_plan_tracks_one_union_across_query_routes(width, device):
     miss_slots = torch.empty_like(miss_sources)
     counts = torch.empty(batch, dtype=dtype, device=device)
     pages = {}
+    evicted = False
 
     for step, warm in enumerate((False, True, True, False)):
-        length = capacity + 17 + step
+        length = capacity + 17 + step * (top_k // 2)
         topk = torch.full((batch, width, top_k), -1, dtype=dtype)
         for route in range(width):
-            start = ((step % 3) * 1703 + route * 1399) % (capacity - top_k)
+            start = step * (top_k // 2) + route * (top_k - 205)
             topk[0, route] = torch.arange(start, start + top_k, dtype=dtype)
             topk[0, route, -2:] = torch.tensor(
                 [length - width + route, length]
@@ -71,6 +73,7 @@ def test_fully_visible_plan_tracks_one_union_across_query_routes(width, device):
         assert short_count == padding_count == 0
         if not warm:
             pages.clear()
+        evicted |= any(slot in pages for slot in slots)
         pages.update(zip(slots, misses))
         for route in range(width):
             assert sources[route, :-1].tolist() == topk[0, route, :-1].tolist()
@@ -85,6 +88,7 @@ def test_fully_visible_plan_tracks_one_union_across_query_routes(width, device):
         assert destinations[2 * width :].eq(-1).all()
         assert inverse[0].eq(-1).all()
         assert inverse[3].eq(-1).all()
+    assert evicted
 
 
 @pytest.mark.parametrize("width", [1, 4])
