@@ -193,7 +193,11 @@ HOST_API void fused_quant_scatter_copy_sparse_flash_attention_v2(
     const at::Tensor &dram_block_table, const at::Tensor &topk_dst_slots, const at::Tensor &topk_src_ids,
     const at::Tensor &topk_miss_counts, const at::Tensor &actual_seq_lengths_query,
     const at::Tensor &actual_seq_lengths_kv, const at::Tensor &num_cache_tokens, const at::Tensor &miss_src_ids,
-    const at::Tensor &miss_dst_slots, const at::Tensor &miss_counts, double scale_value, at::Tensor attention_out)
+    const at::Tensor &miss_dst_slots, const at::Tensor &miss_counts, double scale_value, at::Tensor attention_out,
+    const std::optional<at::Tensor> &current, const std::optional<at::Tensor> &positions,
+    const std::optional<at::Tensor> &current_valid, const std::optional<at::Tensor> &request_slots,
+    const std::optional<at::Tensor> &req_to_token, const std::optional<at::Tensor> &resident_end,
+    bool native_lim_plan)
 {
     TORCH_CHECK(query_nope.dim() == 3 && query_nope.size(0) > 0 &&
                     query_nope.size(2) == fused_quant_scatter_copy_sfa::ATTENTION_OUTPUT_DIM &&
@@ -274,6 +278,32 @@ HOST_API void fused_quant_scatter_copy_sparse_flash_attention_v2(
                                                         : tensor->device() == device;
         TORCH_CHECK(device_ok && tensor->is_contiguous(), "all v2 tensors must be contiguous on the expected device.");
     }
+    const bool stage_resident = current.has_value();
+    const auto resident_tensors = {&current, &positions, &current_valid, &request_slots, &req_to_token, &resident_end};
+    for (const auto *tensor : resident_tensors) {
+        TORCH_CHECK(tensor->has_value() == stage_resident, "v2 resident staging requires all six tensors.");
+        if (stage_resident) {
+            TORCH_CHECK((*tensor)->device() == device && (*tensor)->is_contiguous(),
+                        "v2 resident staging tensors must be contiguous on the query device.");
+        }
+    }
+    if (stage_resident) {
+        TORCH_CHECK(current->scalar_type() == at::kChar &&
+                        current->sizes() == at::IntArrayRef({total_queries, fused_quant_scatter_copy_sfa::PACKED_KV_ROW_BYTES}),
+                    "current must be int8 [T, 656].");
+        TORCH_CHECK(positions->scalar_type() == at::kLong && positions->sizes() == at::IntArrayRef({total_queries}) &&
+                        current_valid->scalar_type() == at::kBool &&
+                        current_valid->sizes() == positions->sizes(),
+                    "positions and current_valid must be int64 [T] and bool [T].");
+        TORCH_CHECK(request_slots->scalar_type() == at::kInt &&
+                        request_slots->sizes() == at::IntArrayRef({batch_size}) &&
+                        req_to_token->scalar_type() == at::kInt && req_to_token->dim() == 2 &&
+                        req_to_token->size(0) > 1 && req_to_token->size(0) <= UINT32_MAX &&
+                        req_to_token->size(1) > 0 && req_to_token->size(1) <= UINT32_MAX &&
+                        resident_end->scalar_type() == at::kInt &&
+                        resident_end->sizes() == at::IntArrayRef({req_to_token->size(0)}),
+                    "resident staging requires int32 request_slots [B], req_to_token [R, S], resident_end [R].");
+    }
     if (query_nope.is_meta()) return;
 
     TORCH_CHECK(dram_kv_dev_ptr > 0, "DRAM must have a registered device-visible address");
@@ -302,8 +332,12 @@ HOST_API void fused_quant_scatter_copy_sparse_flash_attention_v2(
     t.dramMaxBlocks = static_cast<uint32_t>(dram_block_table.size(1));
     t.hbmPhysicalBlocks = static_cast<uint32_t>(hbm_kv_bytes.size(0));
     t.dramPhysicalBlocks = static_cast<uint32_t>(dram_kv_bytes.size(0));
+    const FusedQuantCopySfaResidentTilingData resident_tiling{
+        t, stage_resident ? static_cast<uint32_t>(req_to_token->size(0)) : 0U,
+        stage_resident ? static_cast<uint32_t>(req_to_token->size(1)) : 0U,
+        native_lim_plan ? 1U : 0U, 0U};
     auto tiling =
-        ge_helper::TilingTensorCache<FusedQuantScatterCopySparseFlashAttentionTilingData>::Get(t, "quant_copy_sfa_v2");
+        ge_helper::TilingTensorCache<FusedQuantCopySfaResidentTilingData>::Get(resident_tiling, "quant_copy_sfa_v2");
     const uint64_t bytes =
         platform->GetLibApiWorkSpaceSize() +
         fused_quant_scatter_copy_sfa::UserWorkspaceBytes(cores, static_cast<uint32_t>(total_queries));
@@ -327,11 +361,21 @@ HOST_API void fused_quant_scatter_copy_sparse_flash_attention_v2(
                                    attention_out,
                                    workspace,
                                    tiling};
+    if (stage_resident) {
+        for (const auto *tensor : resident_tensors) owners.push_back(tensor->value());
+    }
+    auto current_ptr = stage_resident ? current->data_ptr() : nullptr;
+    auto positions_ptr = stage_resident ? positions->data_ptr() : nullptr;
+    auto valid_ptr = stage_resident ? current_valid->data_ptr() : nullptr;
+    auto slots_ptr = stage_resident ? request_slots->data_ptr() : nullptr;
+    auto table_ptr = stage_resident ? req_to_token->data_ptr() : nullptr;
+    auto resident_end_ptr = stage_resident ? resident_end->data_ptr() : nullptr;
 #define LAUNCH_COPY_SFA_V2(kernel)                                                                                    \
     EXEC_OWNED_KERNEL_CMD(kernel, cores, owners, query_nope, query_rope, hbm_kv_bytes, dram, hbm_block_table,         \
                           dram_block_table, topk_dst_slots, topk_src_ids, topk_miss_counts, actual_seq_lengths_query, \
                           actual_seq_lengths_kv, num_cache_tokens, miss_src_ids, miss_dst_slots, miss_counts,         \
-                          hbm_kv_bytes, attention_out, workspace, tiling)
+                          hbm_kv_bytes, attention_out, current_ptr, positions_ptr, valid_ptr, slots_ptr, table_ptr,   \
+                          resident_end_ptr, workspace, tiling)
     if (query_nope.scalar_type() == at::kBFloat16) {
         if (query_nope.size(1) == 128)
             LAUNCH_COPY_SFA_V2(fused_quant_copy_sfa_v2_bf16_split);

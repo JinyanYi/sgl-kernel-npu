@@ -48,20 +48,36 @@ HBM/DRAM tables are `[B, pages_per_request]`; each entry is a physical block ID,
 not an implicit contiguous-request offset. Rows may therefore be randomized or
 share physical DRAM pages. They have at most 2048 pages per request, so the
 effective source capacity is at most 262144 tokens at page size 128.
-Invalid rows must have zero miss counts and `-1` slots; callers zero their outputs
-because an empty row may leave output unwritten. Query/output storage stays
-BF16/FP16 even though KV storage is C8.
+For a padded TND request, keep the positive query width and set the KV
+length, cache size and miss counts to zero, with `-1` slots. With this
+contract the kernel initializes the output and skips attention for the
+padded request. An empty slot list alone does not trigger initialization.
+Query/output storage stays BF16/FP16 even though KV storage is C8.
 
 The fully visible entry `fused_quant_scatter_copy_sparse_flash_attention_v2`
 replaces the packed query with separate BF16/FP16 `[T,H,512]` and `[T,H,64]`
 inputs and accepts **`[B,32768]`** request miss arrays. The
 [fully visible A5 LIM](../fused_quant_lightning_indexer_manage/README.md)
 produces the causal TopK and copy plan in one launch. Long rows share one
-request-union miss list across the query window. Short rows use identity
-slots; the caller stages missing short history and refreshes rewritten current
-KV before launch. For a sparse row, supply `C + Q - 1` as the virtual
-scheduling length and only `C / 128` HBM pages. The v2 kernel completes the
-union copy before attention, and accepts LI order within each query.
+request-union copy list across the query window, including retained slots
+whose current KV must be refreshed. In steady state, routes with at most 512
+ordinary misses use the source-aware SFA gather pipeline. If the union count
+equals the largest route miss count, it contains no refresh entries. Otherwise
+the kernel pre-copies the last (at most Q) union entries to cover all retained
+refreshes. Cold rows, wider miss
+routes, and legacy callers keep the complete-copy barrier. The overlap path is
+enabled only when the caller also passes `native_lim_plan=True`, which asserts
+the native LIM ordinary-prefix/refresh-suffix contract. Arbitrary-order callers
+remain on the complete-copy path. Pass `current`, `positions`, `current_valid`,
+`request_slots`, `req_to_token`, and the per-layer `resident_end` together to
+enable resident staging. CopySFA restores missing
+short history into identity slots and stages current KV. Plan entries for valid current positions
+copy directly from the current layer's device buffer, including ordinary
+misses gathered during attention; Host is used only for non-current sources.
+Callers that stage short/current KV themselves can omit the resident tensors.
+
+For a sparse row, supply `C + Q - 1` as the virtual scheduling length and
+only `C / 128` HBM pages. The v2 kernel accepts LI order within each query.
 
 ```bash
 python3 -m pytest -q tests/test_a5_full_visible_planner.py
@@ -70,5 +86,6 @@ python3 -m pytest -q tests/test_a5_full_visible_planner.py
 CPU cases exercise the reference planner and the BF16 cutoff check. Ascend950
 cases compare each Q1/Q4 TopK set with native Quant Lightning Indexer on
 identical index inputs, allowing only substitutions tied at the cutoff.
-The cases cover source IDs beyond 131072 and check CopySFA v2 against the
+The cases cover source IDs beyond 131072, resident refreshes with different
+current and DRAM payloads, and graph replay. They check CopySFA v2 against the
 platform C8 attention operator using the same selections.

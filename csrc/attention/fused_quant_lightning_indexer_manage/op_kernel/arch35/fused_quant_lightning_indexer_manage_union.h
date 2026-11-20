@@ -533,7 +533,7 @@ private:
     }
 
     __aicore__ inline void PublishFinalOutputs(uint32_t batch, uint32_t queryStart, uint32_t routeCount,
-                                               const uint32_t lengths[UNION_ROUTES], uint32_t count,
+                                               const uint32_t lengths[UNION_ROUTES], uint32_t count, uint32_t copyCount,
                                                LocalTensor<int32_t> countLocal,
 #if LIM_SIMT_REQUEST_META_CACHE
                                                const SparseRequestMetadata &metadata,
@@ -551,7 +551,7 @@ private:
         for (uint32_t route = 0U; route < routeCount; ++route) {
             countLocal.SetValue(route * 8U, static_cast<int32_t>(lengths[route]));
         }
-        unionCountLocal.SetValue(0U, static_cast<int32_t>(count));
+        unionCountLocal.SetValue(0U, static_cast<int32_t>(copyCount));
         UnionSync<HardEvent::S_MTE3>(HardEvent::S_MTE3);
         UnionSync<HardEvent::V_MTE3>(HardEvent::V_MTE3);
         for (uint32_t route = 0U; route < routeCount; ++route)
@@ -658,6 +658,49 @@ private:
         return lim_cache_budget::Valid(budget, finalLen, routeCount);
     }
 
+    __aicore__ inline void ReadCurrentSlots(uint64_t poolBase, uint32_t first, uint32_t routes, int32_t *slots)
+    {
+        for (uint32_t q = 0; q < routes; ++q) {
+            slots[q] = cacheSlotsGm_.GetValue(poolBase + first + q);
+        }
+    }
+
+    // Only previously resident sources that still own their slot need a
+    // refresh. Newly admitted sources are already in the ordinary miss list.
+    __aicore__ inline uint32_t AppendRewrittenResidents(uint32_t batch, uint64_t poolBase, uint32_t first,
+                                                        uint32_t routes, uint32_t budget, const int32_t *oldSlots,
+                                                        uint32_t count)
+    {
+        auto sources = thresholdBuf_.Get<int32_t>();
+        auto destinations = sources[16U];
+        if (count != 0U) {
+            // The update phase writes through SIMT. Read back via MTE2 so a
+            // scalar cache line from ReadCurrentSlots cannot hide an eviction.
+            DataCopyPad(sources, cacheSlotsGm_[poolBase + first],
+                        {1, static_cast<uint32_t>(routes * sizeof(int32_t)), 0, 0, 0}, {false, 0, 0, 0});
+            UnionSync<HardEvent::MTE2_S>(HardEvent::MTE2_S);
+        }
+        uint32_t added = 0;
+        for (uint32_t q = 0; q < routes; ++q) {
+            const int32_t slot = oldSlots[q];
+            const uint32_t source = first + q;
+            if (slot >= 0 && static_cast<uint32_t>(slot) < budget && (count == 0U || sources.GetValue(q) == slot)) {
+                sources.SetValue(added, static_cast<int32_t>(source));
+                destinations.SetValue(added, slot);
+                ++added;
+            }
+        }
+        if (added != 0U) {
+            const uint64_t offset = static_cast<uint64_t>(batch) * outputCapacity_ + count;
+            const DataCopyParams copy{1, static_cast<uint16_t>(added * sizeof(int32_t)), 0, 0};
+            UnionSync<HardEvent::S_MTE3>(HardEvent::S_MTE3);
+            DataCopyPad(unionSourcesGm_[offset], sources, copy);
+            DataCopyPad(unionDestinationsGm_[offset], destinations, copy);
+            UnionSync<HardEvent::MTE3_S>(HardEvent::MTE3_S);
+        }
+        return count + added;
+    }
+
     __aicore__ inline void ProcessSparse(uint32_t batch, uint32_t queryStart, uint32_t routeCount)
     {
         uint32_t candidate = 0U;
@@ -710,7 +753,13 @@ private:
             }
         }
         if (total == 0U) {
-            PublishFinalOutputs(batch, queryStart, routeCount, lengths, 0U, countLocal,
+            int32_t currentSlots[UNION_ROUTES];
+            const uint64_t poolBase = static_cast<uint64_t>(poolRow) * poolStride_;
+            const uint32_t first = finalLen - routeCount;
+            ReadCurrentSlots(poolBase, first, routeCount, currentSlots);
+            const uint32_t copyCount =
+                AppendRewrittenResidents(batch, poolBase, first, routeCount, budget, currentSlots, 0U);
+            PublishFinalOutputs(batch, queryStart, routeCount, lengths, 0U, copyCount, countLocal,
 #if LIM_SIMT_REQUEST_META_CACHE
                                 metadata,
 #endif
@@ -756,6 +805,10 @@ private:
             PublishError(batch);
             return;
         }
+        int32_t currentSlots[UNION_ROUTES];
+        const uint64_t poolBase = static_cast<uint64_t>(poolRow) * poolStride_;
+        const uint32_t first = finalLen - routeCount;
+        ReadCurrentSlots(poolBase, first, routeCount, currentSlots);
         const uint32_t updated = ApplyCacheUpdates(batch, count,
 #if LIM_SIMT_REQUEST_META_CACHE
                                                    metadata,
@@ -777,7 +830,9 @@ private:
 #endif
         PrepareTopkMissPrefixes(batch, queryStart, routeCount, lengths, updated, sources, destinations,
                                 topkMissDestinations);
-        PublishFinalOutputs(batch, queryStart, routeCount, lengths, updated, countLocal,
+        const uint32_t copyCount =
+            AppendRewrittenResidents(batch, poolBase, first, routeCount, budget, currentSlots, updated);
+        PublishFinalOutputs(batch, queryStart, routeCount, lengths, updated, copyCount, countLocal,
 #if LIM_SIMT_REQUEST_META_CACHE
                             metadata,
 #endif
@@ -1167,6 +1222,9 @@ private:
             PublishError(batch);
             return;
         }
+        const uint64_t cacheBase = static_cast<uint64_t>(poolRow) * poolStride_;
+        const uint32_t first = finalLen - routeCount;
+        int32_t currentSlots[UNION_MAX_ROUTES];
         uint32_t lengths[UNION_MAX_ROUTES] = {0U};
         uint32_t total = 0U;
         for (uint32_t route = 0U; route < routeCount; ++route) {
@@ -1180,7 +1238,10 @@ private:
             total += lengths[route];
         }
         if (total == 0U) {
-            PublishWideCounts(batch, queryStart, routeCount, lengths, 0U);
+            ReadCurrentSlots(cacheBase, first, routeCount, currentSlots);
+            const uint32_t copyCount =
+                AppendRewrittenResidents(batch, cacheBase, first, routeCount, budget, currentSlots, 0U);
+            PublishWideCounts(batch, queryStart, routeCount, lengths, copyCount);
             return;
         }
         uint32_t unionCount = 0U;
@@ -1202,13 +1263,13 @@ private:
             queryStart, routeCount, WorkspaceRouteRow(batch, queryStart, 0U), scoreRowStride_, candidate, poolRow,
             poolStride_, budget, unionCount, scanSeed, missBase, pairInputBuf_.Get<uint16_t>(),
             pairOutputBuf_.Get<uint8_t>());
-        const uint64_t cacheBase = static_cast<uint64_t>(poolRow) * poolStride_;
         const uint64_t victimScratch = static_cast<uint64_t>(queryStart) * UNION_PAIR_WORDS;
         if (victimCount != unionCount) {
             PublishError(batch);
             return;
         }
         PipeBarrier<PIPE_ALL>();
+        ReadCurrentSlots(cacheBase, first, routeCount, currentSlots);
         const bool incomingResident = total <= UNION_SMALL_MISS_OCCURRENCES || unionCount <= UNION_TOPK;
         if (!ApplyWideUpdates(missBase, victimScratch, cacheBase, unionCount, candidate, budget, incomingResident)) {
             PublishError(batch);
@@ -1228,7 +1289,9 @@ private:
             }
         }
 #endif
-        PublishWideCounts(batch, queryStart, routeCount, lengths, unionCount);
+        const uint32_t copyCount =
+            AppendRewrittenResidents(batch, cacheBase, first, routeCount, budget, currentSlots, unionCount);
+        PublishWideCounts(batch, queryStart, routeCount, lengths, copyCount);
     }
 
     __aicore__ inline void ProcessRequest(uint32_t batch)

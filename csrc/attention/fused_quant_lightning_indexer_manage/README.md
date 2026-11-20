@@ -19,6 +19,9 @@ slots are in `[0, C)`, including selected current tokens.
   overwrites the source map for the request.
 - State `-1` reuses resident hits across the Q routes and emits one
   deduplicated miss list with replacement slots for the whole request.
+  Retained slots in the current Q window are appended as refresh copies.
+  The request count includes these refreshes. Each query's miss count still
+  describes only its TopK misses.
 
 The source map is a contiguous `int32` tensor with width `pages * 128`.
 Row zero and the final padding row have no associated C pool. Valid sparse rows

@@ -37,10 +37,17 @@ __aicore__ inline void QSFAVectorService<TEMPLATE_ARGS>::EnqueueSourceAwareKv(
         if (index < queryMisses) {
             ASSERT(slot >= 0 && slot < fused_quant_scatter_copy_sfa::OWNER_SLOT_CAPACITY);
             const int32_t source = sourcesGm.GetValue(queryRow + index);
-            const int64_t offset = fused_quant_scatter_copy_sfa::RowOffsetInRequest(dramTableGm, copyTiling->dramMaxBlocks,
-                copyTiling->dramPhysicalBlocks, dramTableRow, source);
-            ASSERT(offset >= 0);
-            DataCopyPad(packed[j * fused_quant_scatter_copy_sfa::ALIGNED_KV_ROW_BYTES], dramGm[offset], params, pad);
+            const int32_t currentRow = CurrentRow(source);
+            if (currentRow >= 0) {
+                DataCopyPad(packed[j * fused_quant_scatter_copy_sfa::ALIGNED_KV_ROW_BYTES],
+                    currentGm[static_cast<int64_t>(currentRow) *
+                        fused_quant_scatter_copy_sfa::PACKED_KV_ROW_BYTES], params, pad);
+            } else {
+                const int64_t offset = fused_quant_scatter_copy_sfa::RowOffsetInRequest(dramTableGm,
+                    copyTiling->dramMaxBlocks, copyTiling->dramPhysicalBlocks, dramTableRow, source);
+                ASSERT(offset >= 0);
+                DataCopyPad(packed[j * fused_quant_scatter_copy_sfa::ALIGNED_KV_ROW_BYTES], dramGm[offset], params, pad);
+            }
             if ((earlierMissSlots[slot / fused_quant_scatter_copy_sfa::BITMAP_WORD_BITS] &
                 (1U << (slot % fused_quant_scatter_copy_sfa::BITMAP_WORD_BITS))) == 0) {
                 writebacks[j] = fused_quant_scatter_copy_sfa::RowOffsetInRequest(blockTableGm,
@@ -140,9 +147,7 @@ __aicore__ inline void QSFAVectorService<TEMPLATE_ARGS>::SubmitMissPrefetch(
         if (!OwnsMiss(index)) continue;
         const uint64_t p = queryRow + index;
         const int32_t source = sourcesGm.GetValue(p), slot = SparseIndicesGm.GetValue(p);
-        const auto offset = fused_quant_scatter_copy_sfa::RowOffsetInRequest(dramTableGm, copyTiling->dramMaxBlocks,
-            copyTiling->dramPhysicalBlocks, dramTableRow, source);
-        ASSERT(offset >= 0 && slot >= 0 && slot < fused_quant_scatter_copy_sfa::OWNER_SLOT_CAPACITY);
+        ASSERT(slot >= 0 && slot < fused_quant_scatter_copy_sfa::OWNER_SLOT_CAPACITY);
         pendingIndices[pendingRows] = index;
         pendingDestinations[pendingRows] = -1;
         if ((earlierMissSlots[slot / fused_quant_scatter_copy_sfa::BITMAP_WORD_BITS] &
@@ -151,9 +156,21 @@ __aicore__ inline void QSFAVectorService<TEMPLATE_ARGS>::SubmitMissPrefetch(
                 copyTiling->baseParams.maxBlockNumPerBatch, copyTiling->hbmPhysicalBlocks, hbmTableRow, slot);
             ASSERT(pendingDestinations[pendingRows] >= 0);
         }
-        DataCopyPad(io[pendingRows * fused_quant_scatter_copy_sfa::ALIGNED_KV_ROW_BYTES], dramGm[offset],
-            DataCopyExtParams{1, fused_quant_scatter_copy_sfa::PACKED_KV_ROW_BYTES, 0, 0, 0},
-            DataCopyPadExtParams<uint8_t>{true, 0, fused_quant_scatter_copy_sfa::KV_ROW_PADDING_BYTES, 0});
+        const int32_t currentRow = CurrentRow(source);
+        if (currentRow >= 0) {
+            DataCopyPad(io[pendingRows * fused_quant_scatter_copy_sfa::ALIGNED_KV_ROW_BYTES],
+                currentGm[static_cast<int64_t>(currentRow) *
+                    fused_quant_scatter_copy_sfa::PACKED_KV_ROW_BYTES],
+                DataCopyExtParams{1, fused_quant_scatter_copy_sfa::PACKED_KV_ROW_BYTES, 0, 0, 0},
+                DataCopyPadExtParams<uint8_t>{true, 0, fused_quant_scatter_copy_sfa::KV_ROW_PADDING_BYTES, 0});
+        } else {
+            const auto offset = fused_quant_scatter_copy_sfa::RowOffsetInRequest(dramTableGm,
+                copyTiling->dramMaxBlocks, copyTiling->dramPhysicalBlocks, dramTableRow, source);
+            ASSERT(offset >= 0);
+            DataCopyPad(io[pendingRows * fused_quant_scatter_copy_sfa::ALIGNED_KV_ROW_BYTES], dramGm[offset],
+                DataCopyExtParams{1, fused_quant_scatter_copy_sfa::PACKED_KV_ROW_BYTES, 0, 0, 0},
+                DataCopyPadExtParams<uint8_t>{true, 0, fused_quant_scatter_copy_sfa::KV_ROW_PADDING_BYTES, 0});
+        }
         ++pendingRows;
     }
     pendingEnd = scan;

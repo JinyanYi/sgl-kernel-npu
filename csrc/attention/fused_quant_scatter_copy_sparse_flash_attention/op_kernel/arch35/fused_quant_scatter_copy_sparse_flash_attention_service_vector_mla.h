@@ -75,13 +75,19 @@ public:
 
     __aicore__ inline void InitSourceAwareGather(GM_ADDR dram, GM_ADDR table,
         GM_ADDR sources, GM_ADDR misses, const FusedQuantScatterCopySparseFlashAttentionTilingDataMla *td,
-        bool enabled, GM_ADDR prefetchWorkspace)
+        bool enabled, GM_ADDR prefetchWorkspace, GM_ADDR current, GM_ADDR positions, GM_ADDR currentValid)
     {
         dramGm.SetGlobalBuffer((__gm__ uint8_t *)dram);
         dramTableGm.SetGlobalBuffer((__gm__ int32_t *)table);
         sourcesGm.SetGlobalBuffer((__gm__ int32_t *)sources);
         missesGm.SetGlobalBuffer((__gm__ int32_t *)misses);
         copyTiling = td; sourceAware = enabled;
+        currentAware = enabled && current != nullptr && positions != nullptr && currentValid != nullptr;
+        if (currentAware) {
+            currentGm.SetGlobalBuffer((__gm__ uint8_t *)current);
+            currentPositionsGm.SetGlobalBuffer((__gm__ int64_t *)positions);
+            currentValidGm.SetGlobalBuffer((__gm__ uint8_t *)currentValid);
+        }
         queryBatch = -1; queryRoute = -1; ownerBatch = -1; ownerQuery = -1;
         prefetchGm.SetGlobalBuffer((__gm__ uint8_t *)prefetchWorkspace);
         prefetchedUntil = 0; pendingRows = 0;
@@ -158,12 +164,15 @@ private:
     // Packed rows contain FP8 latent, RoPE and scales: MTE copies opaque bytes.
     // Do not construct scalar FP8 padding values; only VF dequant interprets KV_T.
     GlobalTensor<uint8_t> keyGm;
-    GlobalTensor<uint8_t> dramGm;
+    GlobalTensor<uint8_t> dramGm, currentGm;
     GlobalTensor<int32_t> dramTableGm, sourcesGm, missesGm;
+    GlobalTensor<int64_t> currentPositionsGm;
+    GlobalTensor<uint8_t> currentValidGm;
     const FusedQuantScatterCopySparseFlashAttentionTilingDataMla *copyTiling = nullptr;
-    bool sourceAware = false;
+    bool sourceAware = false, currentAware = false;
     int32_t queryBatch = -1, queryRoute = -1;
-    uint32_t queryBegin = 0, queryIndex = 0, queryMisses = 0;
+    uint32_t queryBegin = 0, queryEnd = 0, queryIndex = 0, queryMisses = 0;
+    int64_t queryFirstPosition = -1;
     uint64_t queryRow = 0, hbmTableRow = 0, dramTableRow = 0, prefetchRow = 0;
     int32_t ownerBatch = -1, ownerQuery = -1;
     // Local bitset of slots already owned by earlier queries of this request.
@@ -182,9 +191,13 @@ private:
             queryRoute = -1;
             if constexpr (LAYOUT_T == QSFA_LAYOUT::TND) {
                 queryBegin = runInfo.boIdx == 0 ? 0 : cuSeqlensQGm.GetValue(runInfo.boIdx - 1);
+                queryEnd = cuSeqlensQGm.GetValue(runInfo.boIdx);
             } else {
                 queryBegin = runInfo.boIdx * constInfo.s1Size;
+                queryEnd = queryBegin + runInfo.actualS1Size;
             }
+            queryFirstPosition = currentAware && queryBegin < queryEnd
+                ? currentPositionsGm.GetValue(queryBegin) : -1;
             hbmTableRow = static_cast<uint64_t>(runInfo.boIdx) * constInfo.oriMaxBlockNumPerBatch;
             dramTableRow = static_cast<uint64_t>(runInfo.boIdx) * copyTiling->dramMaxBlocks;
         }
@@ -194,6 +207,14 @@ private:
         queryRow = static_cast<uint64_t>(queryIndex) * constInfo.sparseBlockCount;
         queryMisses = sourceAware ? missesGm.GetValue(queryIndex) : 0;
         prefetchRow = fused_quant_scatter_copy_sfa::MissPrefetchRowOffset(queryIndex);
+    }
+    __aicore__ inline int32_t CurrentRow(int32_t source)
+    {
+        if (!currentAware || queryFirstPosition < 0 || source < queryFirstPosition) return -1;
+        const int64_t candidate = static_cast<int64_t>(queryBegin) + source - queryFirstPosition;
+        if (candidate < queryBegin || candidate >= queryEnd) return -1;
+        return currentValidGm.GetValue(candidate) && currentPositionsGm.GetValue(candidate) == source
+            ? static_cast<int32_t>(candidate) : -1;
     }
     __aicore__ inline void PrepareOwners(uint32_t batch, uint32_t query)
     {

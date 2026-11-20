@@ -18,7 +18,8 @@ __aicore__ inline void RunQuantCopySfa(
     GM_ADDR numCacheTokens, GM_ADDR missSrcIds, GM_ADDR missDstSlots,
     GM_ADDR missCounts,
     GM_ADDR hbmKvAlias, GM_ADDR attentionOut, GM_ADDR workspace, GM_ADDR tiling,
-    GM_ADDR queryRope = nullptr)
+    GM_ADDR queryRope = nullptr, const fused_quant_scatter_copy_sfa::PackedResidentInputs &residentInputs = {},
+    bool nativeLimPlan = false)
 {
     (void)hbmKvAlias;
     const auto *gm = reinterpret_cast<const __gm__ FusedQuantScatterCopySparseFlashAttentionTilingData *>(tiling);
@@ -26,12 +27,20 @@ __aicore__ inline void RunQuantCopySfa(
     AscendC::TPipe pipe;
     GM_ADDR userWorkspace = AscendC::GetUserWorkspace(workspace);
     const bool fullVisible = queryRope != nullptr;
-    const bool fallback = fused_quant_scatter_copy_sfa::RequiresUnionCopy(missCounts, topkMissCounts,
-        actualSeqLengthsQuery, actualSeqLengthsKv, numCacheTokens, tilingData, fullVisible);
-    if (fallback) {
-        fused_quant_scatter_copy_sfa::UnionCopy(pipe, hbmKvBytes, dramKvBytes, hbmBlockTable,
-            dramBlockTable, missSrcIds, missDstSlots, missCounts, tilingData);
+    bool hasShort = false;
+    fused_quant_scatter_copy_sfa::PackedResidentStage resident;
+    if (residentInputs.current != nullptr) {
+        resident.Init(residentInputs, actualSeqLengthsQuery, actualSeqLengthsKv, numCacheTokens);
     }
+    const auto copyMode = fused_quant_scatter_copy_sfa::SelectCopyMode(missCounts, topkMissCounts,
+        actualSeqLengthsQuery, actualSeqLengthsKv, numCacheTokens, tilingData, fullVisible,
+        resident.Enabled(), nativeLimPlan, hasShort);
+    const bool stageShort = resident.Enabled() && hasShort;
+    if (copyMode != fused_quant_scatter_copy_sfa::PackedCopyMode::NONE || stageShort) {
+        fused_quant_scatter_copy_sfa::StageKv(pipe, hbmKvBytes, dramKvBytes, hbmBlockTable,
+            dramBlockTable, missSrcIds, missDstSlots, missCounts, tilingData, resident, copyMode, stageShort);
+    }
+    if (resident.Enabled()) resident.PublishExtents(tilingData);
     using Cube = typename std::conditional<g_coreType == AscendC::AIC,
         BaseApi::QSFAMatmulService<QueryType, fp8_e4m3fn_t, float, QueryType, false, true,
             QSFA_LAYOUT::TND, QSFA_LAYOUT::PA_BSND, QSFATemplateMode::SCFA_TEMPLATE_MODE, SPLIT_HEADS>,
@@ -47,8 +56,10 @@ __aicore__ inline void RunQuantCopySfa(
         actualSeqLengthsQuery, actualSeqLengthsKv, fullVisible ? nullptr : numCacheTokens, attentionOut,
         userWorkspace, &tilingData, &pipe, queryRope);
     op.InitSourceAwareGather(dramKvBytes, dramBlockTable, topkDstSlots, topkSrcIds, topkMissCounts, &tilingData,
-        !fullVisible && !fallback, userWorkspace + fused_quant_scatter_copy_sfa::AttentionWorkspaceBytes(
-            tilingData.singleCoreParams.usedCoreNum));
+        copyMode != fused_quant_scatter_copy_sfa::PackedCopyMode::COMPLETE,
+        userWorkspace + fused_quant_scatter_copy_sfa::AttentionWorkspaceBytes(
+            tilingData.singleCoreParams.usedCoreNum), residentInputs.current, residentInputs.positions,
+        residentInputs.valid);
     op.Process();
 }
 
@@ -60,13 +71,17 @@ __aicore__ inline void RunQuantCopySfaV2(
     GM_ADDR actualSeqLengthsQuery, GM_ADDR actualSeqLengthsKv,
     GM_ADDR numCacheTokens, GM_ADDR missSrcIds, GM_ADDR missDstSlots,
     GM_ADDR missCounts, GM_ADDR hbmKvAlias, GM_ADDR attentionOut,
-    GM_ADDR workspace, GM_ADDR tiling)
+    GM_ADDR current, GM_ADDR positions, GM_ADDR currentValid, GM_ADDR requestSlots,
+    GM_ADDR reqToToken, GM_ADDR residentEnd, GM_ADDR workspace, GM_ADDR tiling)
 {
+    const auto *gm = reinterpret_cast<const __gm__ FusedQuantCopySfaResidentTilingData *>(tiling);
+    const fused_quant_scatter_copy_sfa::PackedResidentInputs resident{
+        current, positions, currentValid, requestSlots, reqToToken, residentEnd, gm->requestRows, gm->requestContext};
     RunQuantCopySfa<QueryType, SPLIT_HEADS>(queryNope, hbmKvBytes, dramKvBytes,
         hbmBlockTable, dramBlockTable, topkDstSlots, topkSrcIds, topkMissCounts,
         actualSeqLengthsQuery, actualSeqLengthsKv, numCacheTokens, missSrcIds,
         missDstSlots, missCounts, hbmKvAlias, attentionOut, workspace, tiling,
-        queryRope);
+        queryRope, resident, gm->nativeLimPlan != 0);
 }
 #endif
 // Standard CANN entry used by the refactored build. The original four direct
@@ -173,13 +188,16 @@ __global__ __aicore__ void name( \
     GM_ADDR topkSrcIds, GM_ADDR topkMissCounts, GM_ADDR actualSeqLengthsQuery, \
     GM_ADDR actualSeqLengthsKv, GM_ADDR numCacheTokens, GM_ADDR missSrcIds, \
     GM_ADDR missDstSlots, GM_ADDR missCounts, GM_ADDR hbmKvAlias, GM_ADDR attentionOut, \
+    GM_ADDR current, GM_ADDR positions, GM_ADDR currentValid, GM_ADDR requestSlots, \
+    GM_ADDR reqToToken, GM_ADDR residentEnd, \
     GM_ADDR workspace, GM_ADDR tiling) \
 { \
     KERNEL_TASK_TYPE_DEFAULT(KERNEL_TYPE_MIX_AIC_1_2); \
     RunQuantCopySfaV2<dtype, splitHeads>(queryNope, queryRope, hbmKvBytes, dramKvBytes, \
         hbmBlockTable, dramBlockTable, topkDstSlots, topkSrcIds, topkMissCounts, \
         actualSeqLengthsQuery, actualSeqLengthsKv, numCacheTokens, missSrcIds, missDstSlots, \
-        missCounts, hbmKvAlias, attentionOut, workspace, tiling); \
+        missCounts, hbmKvAlias, attentionOut, current, positions, currentValid, requestSlots, \
+        reqToToken, residentEnd, workspace, tiling); \
 }
 
 DEFINE_COPY_SFA_V2_KERNEL(fused_quant_copy_sfa_v2_bf16, bfloat16_t, false)

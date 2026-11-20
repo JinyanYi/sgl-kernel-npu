@@ -51,11 +51,13 @@ public:
     __aicore__ inline void Process();
     __aicore__ inline void InitSourceAwareGather(GM_ADDR dram, GM_ADDR table,
         GM_ADDR slots, GM_ADDR sources, GM_ADDR misses,
-        const FusedQuantScatterCopySparseFlashAttentionTilingDataMla *td, bool enabled, GM_ADDR prefetchWorkspace)
+        const FusedQuantScatterCopySparseFlashAttentionTilingDataMla *td, bool enabled, GM_ADDR prefetchWorkspace,
+        GM_ADDR current, GM_ADDR positions, GM_ADDR currentValid)
     {
         attentionSlots.SetGlobalBuffer((__gm__ int32_t *)slots);
         if ASCEND_IS_AIV {
-            vecBlock.InitSourceAwareGather(dram, table, sources, misses, td, enabled, prefetchWorkspace);
+            vecBlock.InitSourceAwareGather(dram, table, sources, misses, td, enabled, prefetchWorkspace,
+                current, positions, currentValid);
         }
     }
     __aicore__ inline uint32_t ValidSlots(uint32_t batch, uint32_t query) const

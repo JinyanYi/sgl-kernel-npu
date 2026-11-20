@@ -212,11 +212,28 @@ def test_a5_fused_lim_full_visible_copysfa_matches_native_attention(
         .to(device)
     )
     hbm = torch.zeros((2 * dst_pages, page, 1, 656), dtype=torch.int8, device=device)
-    # Simulate the manager's short history/current staging. CopySFA fills
-    # the long request's cold union from the paged source.
-    short_pages = (short_length + page - 1) // page
-    hbm[:short_pages].copy_(packed[:short_pages])
+    flat_kv = packed.view(total_tokens, 656)
+    short_current = slice(short_length - width, short_length)
+    long_base = src_pages * page
+    long_current = slice(long_base + long_length - width, long_base + long_length)
+    current = torch.cat((flat_kv[short_current], flat_kv[long_current]))
+    positions = torch.tensor(
+        [
+            *range(short_length - width, short_length),
+            *range(long_length - width, long_length),
+        ],
+        device=device,
+        dtype=torch.int64,
+    )
+    current_valid = torch.ones(2 * width, dtype=torch.bool, device=device)
+    req_to_token = torch.full((4, long_base), -1, dtype=dtype, device=device)
+    req_to_token[1:3].copy_(
+        torch.arange(total_tokens, dtype=dtype, device=device).view(2, -1)
+    )
+    resident_end = torch.tensor([-1, -1, 16, -1], dtype=dtype, device=device)
     query = noise(2 * width, 8, 576).to(device=device, dtype=torch.bfloat16)
+    query_nope = query[..., :512].contiguous()
+    query_rope = query[..., 512:].contiguous()
     output = query.new_empty((2 * width, 8, 512))
     cache_sizes = torch.tensor([0, capacity], dtype=dtype, device=device)
     pool_entries = torch.tensor([1, 2], dtype=dtype, device=device)
@@ -248,12 +265,49 @@ def test_a5_fused_lim_full_visible_copysfa_matches_native_attention(
         miss_slots,
         miss_counts,
     )
+
+    def copy_sfa(native_lim_plan=True):
+        torch.ops.npu.fused_quant_scatter_copy_sparse_flash_attention_v2(
+            query_nope,
+            query_rope,
+            hbm,
+            packed,
+            packed.data_ptr(),
+            hbm_pages,
+            dram_pages,
+            destinations.unsqueeze(1),
+            sources.unsqueeze(1),
+            per_query,
+            ends,
+            hbm_lengths,
+            cache_sizes,
+            miss_sources,
+            miss_slots,
+            miss_counts,
+            576**-0.5,
+            output,
+            current=current,
+            positions=positions,
+            current_valid=current_valid,
+            request_slots=pool_entries,
+            req_to_token=req_to_token,
+            resident_end=resident_end,
+            native_lim_plan=native_lim_plan,
+        )
+
     if graph:
         op(*args)
+        copy_sfa()
         torch.npu.synchronize()
         capture = torch.npu.NPUGraph()
         with torch.npu.graph(capture):
             op(*args)
+        copy_graph = torch.npu.NPUGraph()
+        with torch.npu.graph(copy_graph):
+            copy_sfa()
+        hbm.zero_()
+        resident_end.fill_(-1)
+        resident_end[2] = 16
 
     resident_by_slot = {}
     for step in range(4):
@@ -290,15 +344,15 @@ def test_a5_fused_lim_full_visible_copysfa_matches_native_attention(
         if step == 0:
             assert count == capacity
         elif step == 2:
-            assert count == 0
-        elif step == 3 and long_length > 131072:
-            assert count > 0
+            assert count == width
+            assert per_query[width:].eq(0).all()
         misses = miss_sources[1, :count].tolist()
         slots = miss_slots[1, :count].tolist()
         assert len(set(misses)) == len(set(slots)) == count
         assert all(0 <= slot < capacity for slot in slots)
         assert all(0 <= source < long_length for source in misses)
-        previous = set(resident_by_slot.values())
+        previous_by_source = {source: slot for slot, source in resident_by_slot.items()}
+        previous = set(previous_by_source)
         resident_by_slot.update(zip(slots, misses))
         assert len(set(resident_by_slot.values())) == capacity
         assert source_map[[0, 1, 3]].eq(-1).all()
@@ -355,28 +409,38 @@ def test_a5_fused_lim_full_visible_copysfa_matches_native_attention(
                     ] == selected
                     assert route_misses[row] == len(set(selected) - previous)
         if step:
-            assert set(misses) == selected_union - previous
+            rewritten = [
+                source
+                for source in range(long_length - width, long_length)
+                if source in previous
+                and resident_by_slot[previous_by_source[source]] == source
+            ]
+            ordinary_count = count - len(rewritten)
+            assert ordinary_count >= 0
+            if step == 3 and long_length > 131072:
+                assert ordinary_count > 0
+            assert misses[ordinary_count:] == rewritten
+            assert set(misses[:ordinary_count]) == selected_union - previous
 
-        torch.ops.npu.fused_quant_scatter_copy_sparse_flash_attention_v2(
-            query[..., :512].contiguous(),
-            query[..., 512:].contiguous(),
-            hbm,
-            packed,
-            packed.data_ptr(),
-            hbm_pages,
-            dram_pages,
-            destinations.unsqueeze(1),
-            sources.unsqueeze(1),
-            per_query,
-            ends,
-            hbm_lengths,
-            cache_sizes,
-            miss_sources,
-            miss_slots,
-            miss_counts,
-            576**-0.5,
-            output,
-        )
+        if step == 2:
+            # Leave DRAM with the original payload until after CopySFA, so
+            # the test detects a stale read in the current-KV refresh path.
+            current[:, :512].zero_()
+        if graph:
+            copy_graph.replay()
+        else:
+            copy_sfa()
+        assert resident_end.tolist() == [-1, short_length, -1, -1]
+        if step == 2:
+            flat_kv[short_current].copy_(current[:width])
+            flat_kv[long_current].copy_(current[width:])
+            hbm_rows = hbm.view(-1, 656)
+            torch.testing.assert_close(hbm_rows[short_current], current[:width])
+            for row in range(width):
+                slot = previous_by_source[long_length - width + row]
+                torch.testing.assert_close(
+                    hbm_rows[capacity + slot], current[width + row]
+                )
         reference = torch_npu.npu_kv_quant_sparse_flash_attention(
             query=query,
             key=cache,
@@ -404,3 +468,62 @@ def test_a5_fused_lim_full_visible_copysfa_matches_native_attention(
         torch.testing.assert_close(
             output.cpu().float(), reference.cpu().float(), atol=0.008, rtol=0.05
         )
+
+    # Replay with the first request padded. The framework relies on CopySFA
+    # to zero these output rows even when the capture only had live requests.
+    hbm_lengths[0] = 0
+    sources[:width].fill_(-1)
+    destinations[:width].fill_(-1)
+    current_valid[:width].fill_(False)
+    pool_entries[0] = 0
+    output.fill_(float("nan"))
+    if graph:
+        copy_graph.replay()
+    else:
+        copy_sfa()
+    assert torch.count_nonzero(output[:width]).item() == 0
+    torch.testing.assert_close(
+        output[width:].cpu().float(),
+        reference[width:].cpu().float(),
+        atol=0.008,
+        rtol=0.05,
+    )
+
+    # Force a steady native miss prefix, shared across all routes. The newest
+    # ordinary miss has stale DRAM. Q4 also carries a retained refresh after
+    # the ordinary union. Compare every persisted byte against complete copy.
+    first = long_length - width
+    ordinary = [*range(7000, 7008), first]
+    retained = [first + 1] if width > 1 else []
+    planned = ordinary + retained
+    ids = torch.arange(2048, 2048 + top_k, device=device, dtype=dtype)
+    slot_ids = ids.clone()
+    ids[: len(ordinary)] = torch.tensor(ordinary, device=device, dtype=dtype)
+    slot_ids[: len(ordinary)] = torch.arange(len(ordinary), device=device, dtype=dtype)
+    sources[width:].copy_(ids.expand(width, -1))
+    destinations[width:].copy_(slot_ids.expand(width, -1))
+    if retained:
+        # Query zero cannot see first + 1. Later queries attend its updated slot.
+        sources[width + 1 :, -1] = retained[0]
+        destinations[width + 1 :, -1] = len(ordinary)
+    per_query[width:].fill_(len(ordinary))
+    miss_sources[1, : len(planned)] = torch.tensor(planned, device=device, dtype=dtype)
+    miss_slots[1, : len(planned)] = torch.arange(
+        len(planned), device=device, dtype=dtype
+    )
+    miss_counts[1] = len(planned)
+    flat_kv[long_current, :512].zero_()
+    current[width:, :512].fill_(64)
+    before = hbm.clone()
+    copy_sfa(native_lim_plan=False)
+    expected_cache = hbm.clone()
+    expected_output = output.clone()
+    hbm.copy_(before)
+    output.fill_(float("nan"))
+    if graph:
+        copy_graph.replay()
+    else:
+        copy_sfa()
+    assert torch.equal(hbm, expected_cache)
+    assert torch.equal(hbm.view(-1, 656)[capacity + len(ordinary) - 1], current[width])
+    torch.testing.assert_close(output, expected_output, atol=0.008, rtol=0.05)

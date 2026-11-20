@@ -22,3 +22,10 @@ struct FusedQuantScatterCopySparseFlashAttentionTilingData {
 static_assert(sizeof(FusedQuantScatterCopySparseFlashAttentionBaseParams) == 56);
 static_assert(sizeof(FusedQuantScatterCopySparseFlashAttentionSingleCoreParams) == 8);
 static_assert(sizeof(FusedQuantScatterCopySparseFlashAttentionTilingData) == 80);
+
+struct FusedQuantCopySfaResidentTilingData {
+    FusedQuantScatterCopySparseFlashAttentionTilingData attention;
+    uint32_t requestRows, requestContext;
+    uint32_t nativeLimPlan, reserved;
+};
+static_assert(sizeof(FusedQuantCopySfaResidentTilingData) == 96);

@@ -41,6 +41,12 @@ constexpr uint32_t NORMAL_AIV_PARTITION_COUNT = CACHE_BLOCK_SIZE / NORMAL_AIV_SL
 constexpr uint32_t SPLIT_HEAD_AIV_PARTITION_COUNT = CACHE_BLOCK_SIZE / SPLIT_HEAD_AIV_SLICE_WIDTH;
 constexpr uint16_t MISS_WRITEBACK_PAIR_ROWS = 2;
 
+enum class PackedCopyMode : uint32_t {
+    NONE = 0,
+    COMPLETE = 1,
+    REFRESH_SUFFIX = 2,
+};
+
 static_assert(TOPK_CAPACITY % GATHER_REGION_SIZE == 0,
     "TopK rows must contain complete gather regions");
 static_assert(GATHER_REGION_SIZE % CACHE_BLOCK_SIZE == 0,
@@ -61,6 +67,22 @@ static_assert(OWNER_SLOT_CAPACITY - COPY_CAPACITY < BITMAP_WORD_BITS,
 FQSCSFA_SCHEDULE_INLINE bool NeedsUnionCopy(int32_t unionCount)
 {
     return unionCount > UNION_COPY_THRESHOLD;
+}
+FQSCSFA_SCHEDULE_INLINE PackedCopyMode UpdatePackedCopyMode(PackedCopyMode mode, int32_t unionCount,
+    int32_t cacheTokenCount, int32_t maxRouteMiss, bool fullVisible, bool residentEnabled,
+    bool nativeLimPlan)
+{
+    if (unionCount <= 0) return mode;
+    if (!fullVisible) return NeedsUnionCopy(unionCount) ? PackedCopyMode::COMPLETE : mode;
+    if (!nativeLimPlan || !residentEnabled || cacheTokenCount <= 0 || unionCount >= cacheTokenCount ||
+        maxRouteMiss > static_cast<int32_t>(FUSED_MISS_CAPACITY)) {
+        return PackedCopyMode::COMPLETE;
+    }
+    // The ordinary union contains every route's distinct misses. Equality
+    // leaves no room for an appended refresh, including every pure-miss Q1
+    // plan. Attention can fetch and persist all those rows without a barrier.
+    if (unionCount == maxRouteMiss) return mode;
+    return mode == PackedCopyMode::COMPLETE ? mode : PackedCopyMode::REFRESH_SUFFIX;
 }
 struct MissWritebackPlan {
     uint16_t blockCount;

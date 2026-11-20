@@ -14,6 +14,8 @@ c10::Dict<std::string, int64_t> A5CopySfaCapabilities()
     c10::Dict<std::string, int64_t> capabilities;
     capabilities.insert("split_query", 1);
     capabilities.insert("full_visible", 1);
+    capabilities.insert("resident_stage", 1);
+    capabilities.insert("resident_source_gather", 1);
     capabilities.insert("schema_version", 1);
     capabilities.insert("packed_row_bytes", 656);
     capabilities.insert("legacy_args", 17);
@@ -39,7 +41,10 @@ TORCH_LIBRARY_FRAGMENT(npu, m)
         "Tensor topk_dst_slots, Tensor topk_src_ids, Tensor topk_miss_counts, "
         "Tensor actual_seq_lengths_query, Tensor actual_seq_lengths_kv, "
         "Tensor num_cache_tokens, Tensor miss_src_ids, Tensor miss_dst_slots, "
-        "Tensor miss_counts, float scale_value, Tensor(b!) attention_out) -> ()");
+        "Tensor miss_counts, float scale_value, Tensor(b!) attention_out, "
+        "Tensor? current=None, Tensor? positions=None, Tensor? current_valid=None, "
+        "Tensor? request_slots=None, Tensor? req_to_token=None, Tensor(c!)? resident_end=None, "
+        "*, bool native_lim_plan=False) -> ()");
     m.def("a5_copy_sfa_capabilities() -> Dict(str, int)", TORCH_FN(A5CopySfaCapabilities));
 }
 
