@@ -217,6 +217,8 @@ private:
         const uint32_t firstChunk = scanSeed % chunks;
         const uint64_t requestScoreBase = WorkspaceRouteRow(batch, queryStart, 0U) * scoreRowStride_;
         const uint64_t cacheBase = static_cast<uint64_t>(poolRow) * poolStride_;
+        constexpr uint32_t SCORE_DMA_ELEMENTS = 32U / sizeof(uint16_t);
+        constexpr uint32_t SLOT_DMA_ELEMENTS = 32U / sizeof(int32_t);
         uint32_t written = 0U;
         for (uint32_t visit = 0U; visit < chunks && written < required; ++visit) {
             const uint32_t chunk = (firstChunk + visit) % chunks;
@@ -225,8 +227,11 @@ private:
                 chunkBase + VICTIM_SCAN_CHUNK > candidate ? candidate - chunkBase : VICTIM_SCAN_CHUNK;
             const uint32_t alignedLen =
                 (chunkLen + B32_VECTOR_ELEMENTS - 1U) / B32_VECTOR_ELEMENTS * B32_VECTOR_ELEMENTS;
+            // Align each DMA to 32 bytes and fill the remaining SIMD tail in UB.
+            const uint32_t scoreDmaLen = (chunkLen + SCORE_DMA_ELEMENTS - 1U) / SCORE_DMA_ELEMENTS * SCORE_DMA_ELEMENTS;
+            const uint32_t slotDmaLen = (chunkLen + SLOT_DMA_ELEMENTS - 1U) / SLOT_DMA_ELEMENTS * SLOT_DMA_ELEMENTS;
             const DataCopyExtParams scoreCopy{1, chunkLen * static_cast<uint32_t>(sizeof(uint16_t)), 0, 0, 0};
-            const DataCopyPadExtParams<uint16_t> scorePad{true, 0, static_cast<uint8_t>(alignedLen - chunkLen), 0U};
+            const DataCopyPadExtParams<uint16_t> scorePad{true, 0, static_cast<uint8_t>(scoreDmaLen - chunkLen), 0U};
             if (routeCount > 0U) {
                 DataCopyPad(score0, scoreWorkspaceGm_[requestScoreBase + chunkBase], scoreCopy, scorePad);
             } else {
@@ -250,17 +255,28 @@ private:
             } else {
                 Duplicate(score3, static_cast<uint16_t>(0), alignedLen);
             }
-            DataCopyPad(slots32, cacheSlotsGm_[cacheBase + chunkBase],
-                        {1, chunkLen * static_cast<uint32_t>(sizeof(int32_t)), 0, 0, 0}, {false, 0, 0, 0});
+            const DataCopyExtParams slotCopy{1, chunkLen * static_cast<uint32_t>(sizeof(int32_t)), 0, 0, 0};
+            const DataCopyPadExtParams<int32_t> slotPad{true, 0, static_cast<uint8_t>(slotDmaLen - chunkLen),
+                                                        lim_pool_contract::INVALID_POOL_SLOT};
+            DataCopyPad(slots32, cacheSlotsGm_[cacheBase + chunkBase], slotCopy, slotPad);
             UnionSync<HardEvent::MTE2_V>(HardEvent::MTE2_V);
 
-            asc_vf_call<lim_normalize_pool_slots_vf::Normalize>((__ubuf__ uint32_t *)slots32.GetPhyAddr(),
-                                                                (chunkLen + 63U) / 64U);
-            PipeBarrier<PIPE_V>();
-            Cast(slots16, slots32, RoundMode::CAST_NONE, chunkLen);
-            if (alignedLen > chunkLen) {
-                Duplicate(slots16[chunkLen], static_cast<int16_t>(-1), alignedLen - chunkLen);
+            if (chunkLen != alignedLen) {
+                if (scoreDmaLen < alignedLen) {
+                    for (uint32_t route = 0; route < routeCount; ++route) {
+                        Duplicate(score0[route * VICTIM_SCAN_CHUNK + scoreDmaLen], static_cast<uint16_t>(0),
+                                  alignedLen - scoreDmaLen);
+                    }
+                }
+                if (slotDmaLen < alignedLen) {
+                    Duplicate(slots32[slotDmaLen], lim_pool_contract::INVALID_POOL_SLOT, alignedLen - slotDmaLen);
+                }
+                PipeBarrier<PIPE_V>();
             }
+            asc_vf_call<lim_normalize_pool_slots_vf::Normalize>((__ubuf__ uint32_t *)slots32.GetPhyAddr(),
+                                                                alignedLen / B32_VECTOR_ELEMENTS);
+            PipeBarrier<PIPE_V>();
+            Cast(slots16, slots32, RoundMode::CAST_NONE, alignedLen);
             PipeBarrier<PIPE_V>();
             FusedQuantLiManageVictimVF::CompactEligiblePayloads(
                 (__ubuf__ uint32_t *)compact.GetPhyAddr(), (__ubuf__ uint16_t *)score0.GetPhyAddr(),

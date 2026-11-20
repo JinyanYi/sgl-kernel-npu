@@ -136,7 +136,10 @@ def test_fully_visible_plan_tracks_one_union_across_query_routes(width, device):
 
 @pytest.mark.parametrize("width", [1, 4])
 @pytest.mark.parametrize(
-    "long_length,graph", [(8199, False), (140001, False), (140001, True)]
+    # At 140242 tokens, the steady miss scan starts at the final 978 entries.
+    # The former 64-element padding requested 92 bytes in one DMA instruction.
+    "long_length,graph",
+    [(8199, False), (140242, False), (140242, True)],
 )
 def test_a5_fused_lim_full_visible_copysfa_matches_native_attention(
     width, long_length, graph
