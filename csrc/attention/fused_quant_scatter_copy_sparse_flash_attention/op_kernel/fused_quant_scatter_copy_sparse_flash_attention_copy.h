@@ -317,6 +317,11 @@ __aicore__ inline void StageKv(TPipe &pipe, GM_ADDR hbm, GM_ADDR dram, GM_ADDR h
         transfer.Finish(pipe);
     }
     SyncAll<false>();
+    if ASCEND_IS_AIV {
+        // StageKv reserves VECIN on AIV only. Restore its UB allocation cursor
+        // before AIC and AIV independently allocate the shared matmul results.
+        pipe.Reset();
+    }
 }
 
 } // namespace fused_quant_scatter_copy_sfa
