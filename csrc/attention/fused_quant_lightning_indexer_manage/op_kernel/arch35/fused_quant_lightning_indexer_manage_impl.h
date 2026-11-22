@@ -91,6 +91,9 @@ public:
     // first route count at a core boundary.
     __aicore__ inline void PublishCounts()
     {
+        pipe_->InitBuffer(scalarBuf_, 32U);
+        LocalTensor<int32_t> scalar = scalarBuf_.Get<int32_t>();
+        DataCopyParams one{1, static_cast<uint16_t>(sizeof(int32_t)), 0, 0};
         for (uint32_t batch = 0; batch < tiling_->batchSize; ++batch) {
             const int32_t state = states_.GetValue(batch);
             if (state == lim_request_limits::FIRST_FILL_STATE || state == lim_request_limits::STEADY_STATE) {
@@ -99,9 +102,17 @@ public:
             uint32_t safeStart = 0U, safeEnd = 0U;
             SafeRouteRange(batch, safeStart, safeEnd);
             for (uint32_t route = safeStart; route < safeEnd; ++route) {
-                routeMissCounts_.SetValue(route, 0);
+                scalar.SetValue(0, 0);
+                PipeBarrier<PIPE_V>();
+                SyncPipes<HardEvent::S_MTE3>();
+                DataCopyPad(routeMissCounts_[route], scalar, one);
+                SyncPipes<HardEvent::MTE3_S>();
             }
-            requestMissCounts_.SetValue(batch, 0);
+            scalar.SetValue(0, 0);
+            PipeBarrier<PIPE_V>();
+            SyncPipes<HardEvent::S_MTE3>();
+            DataCopyPad(requestMissCounts_[batch], scalar, one);
+            SyncPipes<HardEvent::MTE3_S>();
         }
     }
 
@@ -167,6 +178,7 @@ private:
     const FusedQuantLightningIndexerManageTilingData *tiling_ = nullptr;
     TBuf<TPosition::VECCALC> invalidTopkBuf_;
     TBuf<TPosition::VECCALC> zeroCountsBuf_;
+    TBuf<TPosition::VECCALC> scalarBuf_;
     GlobalTensor<int32_t> queryEnds_;
     GlobalTensor<int32_t> keyLengths_;
     GlobalTensor<int32_t> states_;
@@ -233,6 +245,8 @@ public:
 
     __aicore__ inline void PublishCounts()
     {
+        LocalTensor<int32_t> scalar = scalarBuf_.Get<int32_t>();
+        DataCopyParams one{1, static_cast<uint16_t>(sizeof(int32_t)), 0, 0};
         for (uint32_t batch = 0; batch < tiling_->batchSize; ++batch) {
             const int32_t state = states_.GetValue(batch);
             if (state != lim_request_limits::FIRST_FILL_STATE) {
@@ -241,12 +255,22 @@ public:
             uint32_t safeStart = 0U, safeEnd = 0U;
             metadata_.SafeRouteRange(batch, safeStart, safeEnd);
             for (uint32_t route = safeStart; route < safeEnd; ++route) {
-                routeMissCounts_.SetValue(route, routeStatus_.GetValue(route * 8U));
+                scalar.SetValue(0, routeStatus_.GetValue(route * 8U));
+                PipeBarrier<PIPE_V>();
+                SyncPipes<HardEvent::S_MTE3>();
+                DataCopyPad(routeMissCounts_[route], scalar, one);
+                SyncPipes<HardEvent::MTE3_S>();
             }
             // A single-request launch has no compact-count false sharing.
             // Its owner already published the count directly; avoid reading
             // a staged scalar from workspace for this degenerate batch.
-            if (tiling_->batchSize != 1U) requestMissCounts_.SetValue(batch, requestStatus_.GetValue(batch * 8U));
+            if (tiling_->batchSize != 1U) {
+                scalar.SetValue(0, requestStatus_.GetValue(batch * 8U));
+                PipeBarrier<PIPE_V>();
+                SyncPipes<HardEvent::S_MTE3>();
+                DataCopyPad(requestMissCounts_[batch], scalar, one);
+                SyncPipes<HardEvent::MTE3_S>();
+            }
         }
     }
 

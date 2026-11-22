@@ -30,7 +30,7 @@ __aicore__ inline void RunQuantCopySfa(
     bool hasShort = false;
     fused_quant_scatter_copy_sfa::PackedResidentStage resident;
     if (residentInputs.current != nullptr) {
-        resident.Init(residentInputs, actualSeqLengthsQuery, actualSeqLengthsKv, numCacheTokens);
+        resident.Init(residentInputs, actualSeqLengthsQuery, actualSeqLengthsKv, numCacheTokens, pipe);
     }
     const auto copyMode = fused_quant_scatter_copy_sfa::SelectCopyMode(missCounts, topkMissCounts,
         actualSeqLengthsQuery, actualSeqLengthsKv, numCacheTokens, tilingData, fullVisible,

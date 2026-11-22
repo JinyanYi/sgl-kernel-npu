@@ -114,13 +114,26 @@ public:
     // rows, then let one core publish the compact public tensors.
     __aicore__ inline void PublishCounts()
     {
+        LocalTensor<int32_t> scalar = countBuf_.Get<int32_t>();
+        DataCopyParams one{1, static_cast<uint16_t>(sizeof(int32_t)), 0, 0};
         for (uint32_t batch = 0U; batch < batchSize_; ++batch) {
             if (rowModesGm_.GetValue(batch) != UNION_ROW_MODE_SPARSE) continue;
             uint32_t queryStart = 0U, queryEnd = 0U;
             metadata_.SafeRouteRange(batch, queryStart, queryEnd);
-            for (uint32_t route = queryStart; route < queryEnd; ++route)
-                perQueryMissCountsGm_.SetValue(route, routeStatusGm_.GetValue(route * 8U));
-            if (batchSize_ != 1U) unionCountsGm_.SetValue(batch, requestStatusGm_.GetValue(batch * 8U));
+            for (uint32_t route = queryStart; route < queryEnd; ++route) {
+                scalar.SetValue(0, routeStatusGm_.GetValue(route * 8U));
+                PipeBarrier<PIPE_V>();
+                UnionSync<HardEvent::S_MTE3>(HardEvent::S_MTE3);
+                DataCopyPad(perQueryMissCountsGm_[route], scalar, one);
+                UnionSync<HardEvent::MTE3_S>(HardEvent::MTE3_S);
+            }
+            if (batchSize_ != 1U) {
+                scalar.SetValue(0, requestStatusGm_.GetValue(batch * 8U));
+                PipeBarrier<PIPE_V>();
+                UnionSync<HardEvent::S_MTE3>(HardEvent::S_MTE3);
+                DataCopyPad(unionCountsGm_[batch], scalar, one);
+                UnionSync<HardEvent::MTE3_S>(HardEvent::MTE3_S);
+            }
         }
     }
 

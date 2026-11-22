@@ -160,7 +160,7 @@ private:
 
 class PackedResidentStage {
 public:
-    __aicore__ inline void Init(const PackedResidentInputs &inputs, GM_ADDR ends, GM_ADDR lengths, GM_ADDR cacheTokens)
+    __aicore__ inline void Init(const PackedResidentInputs &inputs, GM_ADDR ends, GM_ADDR lengths, GM_ADDR cacheTokens, TPipe &pipe)
     {
         requestRows_ = inputs.requestRows;
         context_ = inputs.requestContext;
@@ -173,6 +173,9 @@ public:
         queryEnds_.SetGlobalBuffer((__gm__ int32_t *)ends);
         lengths_.SetGlobalBuffer((__gm__ int32_t *)lengths);
         cacheTokens_.SetGlobalBuffer((__gm__ int32_t *)cacheTokens);
+        pipe_ = &pipe;
+        pipe_->InitBuffer(scalarBuf_, 32U);
+        scalarEvent_ = static_cast<event_t>(pipe_->AllocEventID<HardEvent::S_MTE3>());
     }
 
     __aicore__ inline bool Enabled() const { return requestRows_ != 0; }
@@ -236,6 +239,8 @@ public:
         // extent. One publisher also avoids false sharing between requests.
         if ASCEND_IS_AIV {
             if (GetBlockIdx() != 0) return;
+            LocalTensor<int32_t> scalar = scalarBuf_.Get<int32_t>();
+            DataCopyParams one{1, static_cast<uint16_t>(sizeof(int32_t)), 0, 0};
             for (uint32_t batch = 0; batch < td.baseParams.batchSize; ++batch) {
                 const int32_t request = slots_.GetValue(batch);
                 const int32_t length = lengths_.GetValue(batch);
@@ -252,7 +257,12 @@ public:
                     }
                     if (contiguous) extent = length;
                 }
-                if (residentEnd_.GetValue(request) != extent) residentEnd_.SetValue(request, extent);
+                if (residentEnd_.GetValue(request) != extent) {
+                    scalar.SetValue(0, extent);
+                    SetFlag<HardEvent::S_MTE3>(scalarEvent_);
+                    WaitFlag<HardEvent::S_MTE3>(scalarEvent_);
+                    DataCopyPad(residentEnd_[request], scalar, one);
+                }
             }
         }
     }
@@ -269,6 +279,9 @@ private:
     GlobalTensor<int64_t> positions_;
     GlobalTensor<uint8_t> valid_;
     uint32_t requestRows_ = 0, context_ = 0;
+    TPipe *pipe_ = nullptr;
+    TBuf<TPosition::VECCALC> scalarBuf_;
+    event_t scalarEvent_ = static_cast<event_t>(-1);
 };
 
 __aicore__ inline void StageKv(TPipe &pipe, GM_ADDR hbm, GM_ADDR dram, GM_ADDR ht, GM_ADDR dt,
@@ -285,8 +298,9 @@ __aicore__ inline void StageKv(TPipe &pipe, GM_ADDR hbm, GM_ADDR dram, GM_ADDR h
         sources.SetGlobalBuffer((__gm__ int32_t *)missSrcIds);
         dests.SetGlobalBuffer((__gm__ int32_t *)missDstSlots);
         sizes.SetGlobalBuffer((__gm__ int32_t *)missCounts);
+        TPipe stagePipe;
         PackedRowTransfer transfer;
-        transfer.Init(pipe, hbm);
+        transfer.Init(stagePipe, hbm);
         const uint32_t lanes = td.singleCoreParams.usedCoreNum * 2;
         for (uint32_t b = 0; b < td.baseParams.batchSize; ++b) {
             int32_t start = 0, end = 0;
@@ -314,14 +328,9 @@ __aicore__ inline void StageKv(TPipe &pipe, GM_ADDR hbm, GM_ADDR dram, GM_ADDR h
                 }
             }
         }
-        transfer.Finish(pipe);
+        transfer.Finish(stagePipe);
     }
     SyncAll<false>();
-    if ASCEND_IS_AIV {
-        // StageKv reserves VECIN on AIV only. Restore its UB allocation cursor
-        // before AIC and AIV independently allocate the shared matmul results.
-        pipe.Reset();
-    }
 }
 
 } // namespace fused_quant_scatter_copy_sfa
