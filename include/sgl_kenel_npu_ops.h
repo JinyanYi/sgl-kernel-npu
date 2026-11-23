@@ -400,7 +400,8 @@ chunk_kda_fwd(const at::Tensor &q, const at::Tensor &k, const at::Tensor &v,
               bool stateVFirst, bool outputFinalState, bool outputGk,
               bool outputW, bool outputU, bool outputQG, bool outputKg,
               bool outputVNew, bool outputH);
-#if defined(SGL_KERNEL_ENABLE_A3_ONLY_OPS) || defined(SGL_KERNEL_ENABLE_A5_ONLY_OPS)
+#if defined(SGL_KERNEL_ENABLE_A3_ONLY_OPS) ||                                  \
+    defined(SGL_KERNEL_ENABLE_A5_ONLY_OPS)
 /**
  * @brief Sparse row copy: for each i where valid_mask[i] is true,
  *   dst[dst_index[i]] = src[src_index[i]]

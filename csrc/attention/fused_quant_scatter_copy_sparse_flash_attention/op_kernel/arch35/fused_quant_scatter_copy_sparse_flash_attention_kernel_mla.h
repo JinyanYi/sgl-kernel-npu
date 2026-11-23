@@ -35,29 +35,31 @@ using namespace AscendC::Impl::Detail;
 using namespace regbaseutil;
 
 namespace BaseApi {
-template <typename CubeBlockType, typename VecBlockType> class FusedQuantScatterCopySparseFlashAttentionMla {
+template <typename CubeBlockType, typename VecBlockType>
+class FusedQuantScatterCopySparseFlashAttentionMla
+{
 public:
     ARGS_TRAITS;
 
     __aicore__ inline FusedQuantScatterCopySparseFlashAttentionMla(){};
     __aicore__ inline void Init(__gm__ uint8_t *query, __gm__ uint8_t *key, __gm__ uint8_t *value,
-                                __gm__ uint8_t *sparseIndices, __gm__ uint8_t* keyScale,
-                                __gm__ uint8_t* valueScale, __gm__ uint8_t *blockTable,
-                                __gm__ uint8_t *actualSeqLengthsQ, __gm__ uint8_t *actualSeqLengthsKv,
-                                __gm__ uint8_t *numCacheTokens,
+                                __gm__ uint8_t *sparseIndices, __gm__ uint8_t *keyScale, __gm__ uint8_t *valueScale,
+                                __gm__ uint8_t *blockTable, __gm__ uint8_t *actualSeqLengthsQ,
+                                __gm__ uint8_t *actualSeqLengthsKv, __gm__ uint8_t *numCacheTokens,
                                 __gm__ uint8_t *attentionOut, __gm__ uint8_t *workspace,
                                 const FusedQuantScatterCopySparseFlashAttentionTilingDataMla *__restrict tiling,
-				                TPipe *tPipe, __gm__ uint8_t *queryRope = nullptr);
+                                TPipe *tPipe, __gm__ uint8_t *queryRope = nullptr);
     __aicore__ inline void Process();
-    __aicore__ inline void InitSourceAwareGather(GM_ADDR dram, GM_ADDR table,
-        GM_ADDR slots, GM_ADDR sources, GM_ADDR misses,
-        const FusedQuantScatterCopySparseFlashAttentionTilingDataMla *td, bool enabled, GM_ADDR prefetchWorkspace,
-        GM_ADDR current, GM_ADDR positions, GM_ADDR currentValid)
+    __aicore__ inline void InitSourceAwareGather(GM_ADDR dram, GM_ADDR table, GM_ADDR slots, GM_ADDR sources,
+                                                 GM_ADDR misses,
+                                                 const FusedQuantScatterCopySparseFlashAttentionTilingDataMla *td,
+                                                 bool enabled, GM_ADDR prefetchWorkspace, GM_ADDR current,
+                                                 GM_ADDR positions, GM_ADDR currentValid)
     {
         attentionSlots.SetGlobalBuffer((__gm__ int32_t *)slots);
         if ASCEND_IS_AIV {
-            vecBlock.InitSourceAwareGather(dram, table, sources, misses, td, enabled, prefetchWorkspace,
-                current, positions, currentValid);
+            vecBlock.InitSourceAwareGather(dram, table, sources, misses, td, enabled, prefetchWorkspace, current,
+                                           positions, currentValid);
         }
     }
     __aicore__ inline uint32_t ValidSlots(uint32_t batch, uint32_t query) const
@@ -67,24 +69,26 @@ public:
         uint32_t lo = 0, hi = constInfo.sparseBlockCount;
         while (lo < hi) {
             const uint32_t mid = (lo + hi) / 2;
-            if (attentionSlots.GetValue(
-                    static_cast<uint64_t>(t) * constInfo.sparseBlockCount + mid) >= 0) lo = mid + 1;
-            else hi = mid;
+            if (attentionSlots.GetValue(static_cast<uint64_t>(t) * constInfo.sparseBlockCount + mid) >= 0)
+                lo = mid + 1;
+            else
+                hi = mid;
         }
         return lo;
     }
 
 private:
     __aicore__ inline void ProcessMainLoop();
-    __aicore__ inline void InitGlobalBuffer(__gm__ uint8_t *query, __gm__ uint8_t *key, __gm__ uint8_t *value,
-    __gm__ uint8_t *sparseIndices, __gm__ uint8_t *blockTable, __gm__ uint8_t *actualSeqLengthsQ,
-    __gm__ uint8_t *actualSeqLengthsKv, __gm__ uint8_t *numCacheTokens,
-    __gm__ uint8_t *workspace, const FusedQuantScatterCopySparseFlashAttentionTilingDataMla *__restrict tiling, TPipe *tPipe);
+    __aicore__ inline void
+    InitGlobalBuffer(__gm__ uint8_t *query, __gm__ uint8_t *key, __gm__ uint8_t *value, __gm__ uint8_t *sparseIndices,
+                     __gm__ uint8_t *blockTable, __gm__ uint8_t *actualSeqLengthsQ, __gm__ uint8_t *actualSeqLengthsKv,
+                     __gm__ uint8_t *numCacheTokens, __gm__ uint8_t *workspace,
+                     const FusedQuantScatterCopySparseFlashAttentionTilingDataMla *__restrict tiling, TPipe *tPipe);
     __aicore__ inline void InitLocalBuffer();
     __aicore__ inline void ComputeConstexpr();
     __aicore__ inline void InitMMResBuf(__gm__ uint8_t *workspace);
     __aicore__ inline void SetRunInfo(RunInfo &runInfo, RunParamStr &runParam, int64_t taskId, int64_t s2LoopCount,
-        int64_t s2LoopLimit, int64_t multiCoreInnerIdx);
+                                      int64_t s2LoopLimit, int64_t multiCoreInnerIdx);
     __aicore__ inline void ComputeBmm1Tail(RunInfo &runInfo, RunParamStr &runParam);
     __aicore__ inline void InitUniqueConstInfo();
     __aicore__ inline void InitUniqueRunInfo(const RunParamStr &runParam, RunInfo &runInfo);
@@ -138,13 +142,10 @@ private:
 
 template <typename CubeBlockType, typename VecBlockType>
 __aicore__ inline void FusedQuantScatterCopySparseFlashAttentionMla<CubeBlockType, VecBlockType>::Init(
-    __gm__ uint8_t *query,
-    __gm__ uint8_t *key, __gm__ uint8_t *value,
-    __gm__ uint8_t *sparseIndices, __gm__ uint8_t* keyScale,
-    __gm__ uint8_t* valueScale, __gm__ uint8_t *blockTable, __gm__ uint8_t *actualSeqLengthsQ,
-    __gm__ uint8_t *actualSeqLengthsKv, __gm__ uint8_t *numCacheTokens,
-    __gm__ uint8_t *attentionOut, __gm__ uint8_t *workspace,
-    const FusedQuantScatterCopySparseFlashAttentionTilingDataMla *__restrict tiling,
+    __gm__ uint8_t *query, __gm__ uint8_t *key, __gm__ uint8_t *value, __gm__ uint8_t *sparseIndices,
+    __gm__ uint8_t *keyScale, __gm__ uint8_t *valueScale, __gm__ uint8_t *blockTable, __gm__ uint8_t *actualSeqLengthsQ,
+    __gm__ uint8_t *actualSeqLengthsKv, __gm__ uint8_t *numCacheTokens, __gm__ uint8_t *attentionOut,
+    __gm__ uint8_t *workspace, const FusedQuantScatterCopySparseFlashAttentionTilingDataMla *__restrict tiling,
     TPipe *tPipe, __gm__ uint8_t *queryRope)
 {
     fa_base_matmul::idCounterNum = 0;
@@ -163,8 +164,8 @@ __aicore__ inline void FusedQuantScatterCopySparseFlashAttentionMla<CubeBlockTyp
     constInfo.s2BaseSize = fused_quant_scatter_copy_sfa::CACHE_BLOCK_SIZE;
 
     this->pipe = tPipe;
-    vecBlock.InitVecBlock(tPipe, this->tilingData, this->sharedParams, this->aicIdx,
-        constInfo.subBlockIdx, actualSeqLengthsQ, actualSeqLengthsKv, numCacheTokens);
+    vecBlock.InitVecBlock(tPipe, this->tilingData, this->sharedParams, this->aicIdx, constInfo.subBlockIdx,
+                          actualSeqLengthsQ, actualSeqLengthsKv, numCacheTokens);
     if ASCEND_IS_AIV {
         constInfo.bSize = this->sharedParams.bSize;
         constInfo.gSize = this->sharedParams.gSize;
@@ -183,16 +184,16 @@ __aicore__ inline void FusedQuantScatterCopySparseFlashAttentionMla<CubeBlockTyp
         }
         /* wait kfc message */
         CrossCoreWaitFlag<SYNC_MODE, PIPE_S>(15);
-        auto tempTilingSSbuf = reinterpret_cast<__ssbuf__ uint32_t*>(0); // 从ssbuf的0地址开始拷贝
+        auto tempTilingSSbuf = reinterpret_cast<__ssbuf__ uint32_t *>(0);  // 从ssbuf的0地址开始拷贝
         auto tempTiling = reinterpret_cast<uint32_t *>(&sharedParams);
-        #pragma unroll
+#pragma unroll
         for (int i = 0; i < sizeof(CVSharedParams) / sizeof(uint32_t); ++i, ++tempTilingSSbuf, ++tempTiling) {
             *tempTiling = *tempTilingSSbuf;
         }
     }
     this->ComputeConstexpr();
-    this->InitGlobalBuffer(query, key, value, sparseIndices, blockTable, actualSeqLengthsQ,
-        actualSeqLengthsKv, numCacheTokens, workspace, tiling, tPipe); // gm设置
+    this->InitGlobalBuffer(query, key, value, sparseIndices, blockTable, actualSeqLengthsQ, actualSeqLengthsKv,
+                           numCacheTokens, workspace, tiling, tPipe);  // gm设置
     this->InitCalcParamsEach();
     this->InitLocalBuffer();
 }
@@ -205,9 +206,8 @@ __aicore__ inline void FusedQuantScatterCopySparseFlashAttentionMla<CubeBlockTyp
     const uint32_t total = actualSeqQlenAddr[constInfo.bSize - 1];
     const uint32_t perCore = (total + cores - 1) / cores;
     usedCoreNum = ((total + perCore - 1) / perCore) * (IS_SPLIT_G ? 2 : 1);
-    maxS2LoopCnt = perCore * ((constInfo.sparseBlockCount +
-        fused_quant_scatter_copy_sfa::CACHE_BLOCK_SIZE - 1) /
-        fused_quant_scatter_copy_sfa::CACHE_BLOCK_SIZE);
+    maxS2LoopCnt = perCore * ((constInfo.sparseBlockCount + fused_quant_scatter_copy_sfa::CACHE_BLOCK_SIZE - 1) /
+                              fused_quant_scatter_copy_sfa::CACHE_BLOCK_SIZE);
     if (lane * perCore >= total) return;
     const uint32_t first = lane * perCore;
     const uint32_t last = Min(total, first + perCore) - 1;
@@ -215,10 +215,12 @@ __aicore__ inline void FusedQuantScatterCopySparseFlashAttentionMla<CubeBlockTyp
     for (uint32_t b = 0; b < constInfo.bSize; ++b) {
         const uint32_t end = actualSeqQlenAddr[b];
         if (first >= previous && first < end) {
-            constInfo.bN2Start = b; constInfo.gS1Start = first - previous;
+            constInfo.bN2Start = b;
+            constInfo.gS1Start = first - previous;
         }
         if (last >= previous && last < end) {
-            constInfo.bN2End = b; constInfo.gS1End = last - previous;
+            constInfo.bN2End = b;
+            constInfo.gS1End = last - previous;
         }
         previous = end;
     }
@@ -227,8 +229,9 @@ __aicore__ inline void FusedQuantScatterCopySparseFlashAttentionMla<CubeBlockTyp
 }
 
 template <typename CubeBlockType, typename VecBlockType>
-__aicore__ inline uint64_t FusedQuantScatterCopySparseFlashAttentionMla<CubeBlockType, VecBlockType>::\
-    GetBalanceActualSeqLengths(GlobalTensor<int32_t> &actualSeqLengths, uint32_t bIdx)
+__aicore__ inline uint64_t
+FusedQuantScatterCopySparseFlashAttentionMla<CubeBlockType, VecBlockType>::GetBalanceActualSeqLengths(
+    GlobalTensor<int32_t> &actualSeqLengths, uint32_t bIdx)
 {
     if constexpr (LAYOUT_T == QSFA_LAYOUT::TND) {
         if (bIdx == 0) {
@@ -248,9 +251,8 @@ __aicore__ inline uint64_t FusedQuantScatterCopySparseFlashAttentionMla<CubeBloc
 }
 
 template <typename CubeBlockType, typename VecBlockType>
-__aicore__ inline void FusedQuantScatterCopySparseFlashAttentionMla<CubeBlockType, VecBlockType>::GetAxisStartIdx(uint32_t bN2EndPrev,
-                                                                                uint32_t s1GEndPrev,
-                                                                                uint32_t s2EndPrev)
+__aicore__ inline void FusedQuantScatterCopySparseFlashAttentionMla<CubeBlockType, VecBlockType>::GetAxisStartIdx(
+    uint32_t bN2EndPrev, uint32_t s1GEndPrev, uint32_t s2EndPrev)
 {
     uint32_t qsfaBEndPrev = bN2EndPrev / constInfo.n2Size;
     uint32_t actualSeqQPrev = GetBalanceActualSeqLengths(actualSeqLengthsQGm, qsfaBEndPrev);
@@ -258,7 +260,7 @@ __aicore__ inline void FusedQuantScatterCopySparseFlashAttentionMla<CubeBlockTyp
     constInfo.bN2Start = bN2EndPrev;
     constInfo.gS1Start = s1GEndPrev;
     constInfo.s2Start = 0;
-    if (s1GEndPrev >= s1GPrevBaseNum - 1) { // 上个核把S1G处理完了
+    if (s1GEndPrev >= s1GPrevBaseNum - 1) {  // 上个核把S1G处理完了
         constInfo.bN2Start++;
         constInfo.gS1Start = 0;
     } else {
@@ -270,8 +272,8 @@ template <typename CubeBlockType, typename VecBlockType>
 __aicore__ inline void FusedQuantScatterCopySparseFlashAttentionMla<CubeBlockType, VecBlockType>::InitGlobalBuffer(
     __gm__ uint8_t *query, __gm__ uint8_t *key, __gm__ uint8_t *value, __gm__ uint8_t *sparseIndices,
     __gm__ uint8_t *blockTable, __gm__ uint8_t *actualSeqLengthsQ, __gm__ uint8_t *actualSeqLengthsKv,
-    __gm__ uint8_t *numCacheTokens,
-    __gm__ uint8_t *workspace, const FusedQuantScatterCopySparseFlashAttentionTilingDataMla *__restrict tiling, TPipe *tPipe)
+    __gm__ uint8_t *numCacheTokens, __gm__ uint8_t *workspace,
+    const FusedQuantScatterCopySparseFlashAttentionTilingDataMla *__restrict tiling, TPipe *tPipe)
 {
     if (actualSeqLengthsQ != nullptr) {
         actualSeqQlenAddr = (__gm__ int32_t *)actualSeqLengthsQ;
@@ -288,13 +290,12 @@ __aicore__ inline void FusedQuantScatterCopySparseFlashAttentionMla<CubeBlockTyp
     cubeBlock.InitCubeInput(actualSeqLengthsQ, constInfo);
 }
 
-
 template <typename CubeBlockType, typename VecBlockType>
-__aicore__ inline void FusedQuantScatterCopySparseFlashAttentionMla<CubeBlockType, VecBlockType>::InitMMResBuf(
-    __gm__ uint8_t *workspace)
+__aicore__ inline void
+FusedQuantScatterCopySparseFlashAttentionMla<CubeBlockType, VecBlockType>::InitMMResBuf(__gm__ uint8_t *workspace)
 {
     uint32_t mm1RightSize = constInfo.s2BaseSize * fused_quant_scatter_copy_sfa::QUERY_DIM * sizeof(Q_T);
-    l1BufferManager.Init(pipe, 524288); // 512 * 1024
+    l1BufferManager.Init(pipe, 524288);  // 512 * 1024
     l1RightBuffers.Init(l1BufferManager, mm1RightSize);
     l1RightBuffers.Get().SetCrossCoreID(crossCoreSyncBufId, INVALID_CROSS_CORE_EVENT_ID);
     crossCoreSyncBufId++;
@@ -309,8 +310,8 @@ __aicore__ inline void FusedQuantScatterCopySparseFlashAttentionMla<CubeBlockTyp
         l1RightBuffers.Get().SetCrossCore();
     }
     uint32_t mm1ResultSize = constInfo.s1BaseSize / CV_RATIO * constInfo.s2BaseSize * sizeof(T);
-    uint32_t mm2ResultSize = constInfo.s1BaseSize / CV_RATIO *
-        fused_quant_scatter_copy_sfa::ATTENTION_OUTPUT_DIM * sizeof(T);
+    uint32_t mm2ResultSize =
+        constInfo.s1BaseSize / CV_RATIO * fused_quant_scatter_copy_sfa::ATTENTION_OUTPUT_DIM * sizeof(T);
     ubBufferManager.Init(pipe, mm1ResultSize * 2 + mm2ResultSize);
 
     bmm1Buffers.Init(ubBufferManager, mm1ResultSize);
@@ -333,8 +334,7 @@ __aicore__ inline void FusedQuantScatterCopySparseFlashAttentionMla<CubeBlockTyp
 
     if constexpr (IS_SPLIT_G) {
         uint32_t v0ResSize = constInfo.s2BaseSize * fused_quant_scatter_copy_sfa::QUERY_DIM * sizeof(Q_T);
-        int64_t totalOffset = v0ResSize * fused_quant_scatter_copy_sfa::ATTENTION_PIPELINE_STAGE_COUNT *
-            (aicIdx >> 1U);
+        int64_t totalOffset = v0ResSize * fused_quant_scatter_copy_sfa::ATTENTION_PIPELINE_STAGE_COUNT * (aicIdx >> 1U);
         gmBufferManager.Init(workspace + totalOffset);
         v0ResGmBuffers.Init(gmBufferManager, v0ResSize);
         v0ResGmBuffers.Get().SetCrossCoreID(INVALID_CROSS_CORE_EVENT_ID, crossCoreSyncBufId);
@@ -396,8 +396,7 @@ __aicore__ inline void FusedQuantScatterCopySparseFlashAttentionMla<CubeBlockTyp
         constInfo.s1BaseN2GDv = constInfo.s1BaseSize * constInfo.n2GDv;
         constInfo.mm1Ka = constInfo.n2Size * constInfo.dSize;
         if ASCEND_IS_AIV {
-            constInfo.attentionOutStride = \
-                (constInfo.n2G - constInfo.gSize) * constInfo.dSizeV * sizeof(OUTPUT_T);
+            constInfo.attentionOutStride = (constInfo.n2G - constInfo.gSize) * constInfo.dSizeV * sizeof(OUTPUT_T);
         }
     } else if constexpr (LAYOUT_T == QSFA_LAYOUT::BSND) {
         // BSH/BSNGD
@@ -405,8 +404,7 @@ __aicore__ inline void FusedQuantScatterCopySparseFlashAttentionMla<CubeBlockTyp
         constInfo.mm1Ka = constInfo.n2Size * constInfo.dSize;
 
         if ASCEND_IS_AIV {
-            constInfo.attentionOutStride = \
-                (constInfo.n2G - constInfo.gSize) * constInfo.dSizeV * sizeof(OUTPUT_T);
+            constInfo.attentionOutStride = (constInfo.n2G - constInfo.gSize) * constInfo.dSizeV * sizeof(OUTPUT_T);
         }
     }
 
@@ -489,8 +487,8 @@ __aicore__ inline void FusedQuantScatterCopySparseFlashAttentionMla<CubeBlockTyp
         bool lastBN = (qsfaBnIdx == bN2EndIdx - 1);
         runParam.boIdx = qsfaBnIdx;
         runParam.n2oIdx = 0;
-        ComputeParamBatch<TEMPLATE_INTF_ARGS>(runParam, this->constInfo,
-            this->actualSeqQlenAddr, this->actualSeqKvlenAddr, this->numCacheTokensAddr);
+        ComputeParamBatch<TEMPLATE_INTF_ARGS>(runParam, this->constInfo, this->actualSeqQlenAddr,
+                                              this->actualSeqKvlenAddr, this->numCacheTokensAddr);
         ComputeS1LoopInfo<TEMPLATE_INTF_ARGS>(runParam, this->constInfo, lastBN, nextGs1Idx, gS1StartIdx);
 
         int64_t gS1LoopEnd = lastBN ? (runParam.gs1LoopEndIdx + PRELOAD_NUM) : runParam.gs1LoopEndIdx;
@@ -513,10 +511,9 @@ __aicore__ inline void FusedQuantScatterCopySparseFlashAttentionMla<CubeBlockTyp
 
             if (notLastTwoLoop) {
                 this->ComputeAxisIdxByBnAndGs1(qsfaBnIdx, gS1Index, runParam);
-                bool s1NoNeedCalc = ComputeParamS1<TEMPLATE_INTF_ARGS>(
-                    runParam, this->constInfo, gS1Index, this->actualSeqQlenAddr);
-                bool s2NoNeedCalc =
-                    ComputeS2LoopInfo<TEMPLATE_INTF_ARGS>(runParam, this->constInfo);
+                bool s1NoNeedCalc =
+                    ComputeParamS1<TEMPLATE_INTF_ARGS>(runParam, this->constInfo, gS1Index, this->actualSeqQlenAddr);
+                bool s2NoNeedCalc = ComputeS2LoopInfo<TEMPLATE_INTF_ARGS>(runParam, this->constInfo);
                 // Padding is not KV: never feed stale/zero L1 rows into softmax.
                 // Both AIC and AIV derive exactly the same tile count on device.
                 if (!s1NoNeedCalc && !s2NoNeedCalc) {
@@ -524,7 +521,7 @@ __aicore__ inline void FusedQuantScatterCopySparseFlashAttentionMla<CubeBlockTyp
                     runParam.s2LineStartIdx = 0;
                     runParam.s2LineEndIdx = valid;
                     runParam.kvLoopEndIdx = (valid + fused_quant_scatter_copy_sfa::CACHE_BLOCK_SIZE - 1) /
-                        fused_quant_scatter_copy_sfa::CACHE_BLOCK_SIZE;
+                                            fused_quant_scatter_copy_sfa::CACHE_BLOCK_SIZE;
                     runParam.s2LoopEndIdx = runParam.kvLoopEndIdx;
                     s2NoNeedCalc = valid == 0;
                 }
@@ -542,15 +539,14 @@ __aicore__ inline void FusedQuantScatterCopySparseFlashAttentionMla<CubeBlockTyp
 
             for (int64_t s2LoopCount = 0; s2LoopCount <= s2LoopLimit; ++s2LoopCount) {
                 if (notLastTwoLoop) {
-                    RunInfo &runInfo1 = runInfo[taskId %
-                        fused_quant_scatter_copy_sfa::ATTENTION_PIPELINE_STAGE_COUNT];
+                    RunInfo &runInfo1 = runInfo[taskId % fused_quant_scatter_copy_sfa::ATTENTION_PIPELINE_STAGE_COUNT];
                     this->SetRunInfo(runInfo1, runParam, taskId, s2LoopCount, s2LoopLimit, multiCoreInnerIdx);
                     if ASCEND_IS_AIC {
                         this->cubeBlock.IterateBmm1(this->bmm1Buffers.Get(), this->l1RightBuffers.Get(),
-                        this->v0ResGmBuffers.Get(), runInfo1, this->constInfo);
+                                                    this->v0ResGmBuffers.Get(), runInfo1, this->constInfo);
                     } else {
-                        this->vecBlock.ProcessVec0(this->l1RightBuffers.Get(), this->v0ResGmBuffers.Get(),
-                        runInfo1, this->constInfo);
+                        this->vecBlock.ProcessVec0(this->l1RightBuffers.Get(), this->v0ResGmBuffers.Get(), runInfo1,
+                                                   this->constInfo);
 #if FUSED_QUANT_SCATTER_COPY_SPARSE_FLASH_ATTENTION_PREFETCH
                         this->vecBlock.SubmitMissPrefetch(runInfo1, this->constInfo);
 #endif
@@ -567,24 +563,24 @@ __aicore__ inline void FusedQuantScatterCopySparseFlashAttentionMla<CubeBlockTyp
                     }
                 }
                 if (taskId > 0 && notLast) {
-                    auto &runInfo2 = runInfo[(taskId +
-                        fused_quant_scatter_copy_sfa::ATTENTION_PIPELINE_STAGE_COUNT - 1) %
-                        fused_quant_scatter_copy_sfa::ATTENTION_PIPELINE_STAGE_COUNT];
+                    auto &runInfo2 =
+                        runInfo[(taskId + fused_quant_scatter_copy_sfa::ATTENTION_PIPELINE_STAGE_COUNT - 1) %
+                                fused_quant_scatter_copy_sfa::ATTENTION_PIPELINE_STAGE_COUNT];
                     if ASCEND_IS_AIV {
                         this->vecBlock.ProcessVec1(this->l1RightBuffers.GetReused(), this->bmm1Buffers.Get(), runInfo2,
-                            this->constInfo);
+                                                   this->constInfo);
                     } else {
-                        RunInfo &runInfo2 = runInfo[(taskId +
-                            fused_quant_scatter_copy_sfa::ATTENTION_PIPELINE_STAGE_COUNT - 1) %
-                            fused_quant_scatter_copy_sfa::ATTENTION_PIPELINE_STAGE_COUNT];
-                        this->cubeBlock.IterateBmm2(this->bmm2Buffers.Get(), this->l1RightBuffers, this->l1RightBuffers.GetReused(), runInfo2,
-                            this->constInfo);
+                        RunInfo &runInfo2 =
+                            runInfo[(taskId + fused_quant_scatter_copy_sfa::ATTENTION_PIPELINE_STAGE_COUNT - 1) %
+                                    fused_quant_scatter_copy_sfa::ATTENTION_PIPELINE_STAGE_COUNT];
+                        this->cubeBlock.IterateBmm2(this->bmm2Buffers.Get(), this->l1RightBuffers,
+                                                    this->l1RightBuffers.GetReused(), runInfo2, this->constInfo);
                     }
                 }
                 if (taskId > 1) {
                     if ASCEND_IS_AIV {
-                        RunInfo &qsfaRunInfo3 = runInfo[(taskId + 1) %
-                            fused_quant_scatter_copy_sfa::ATTENTION_PIPELINE_STAGE_COUNT];
+                        RunInfo &qsfaRunInfo3 =
+                            runInfo[(taskId + 1) % fused_quant_scatter_copy_sfa::ATTENTION_PIPELINE_STAGE_COUNT];
                         this->vecBlock.ProcessVec2(this->bmm2Buffers.Get(), qsfaRunInfo3, this->constInfo);
                     }
                 }
@@ -612,14 +608,14 @@ __aicore__ inline void FusedQuantScatterCopySparseFlashAttentionMla<CubeBlockTyp
 }
 
 template <typename CubeBlockType, typename VecBlockType>
-__aicore__ inline void FusedQuantScatterCopySparseFlashAttentionMla<CubeBlockType, VecBlockType>::ComputeAxisIdxByBnAndGs1(
+__aicore__ inline void
+FusedQuantScatterCopySparseFlashAttentionMla<CubeBlockType, VecBlockType>::ComputeAxisIdxByBnAndGs1(
     int64_t bnIndex, int64_t gS1Index, RunParamStr &runParam)
 {
     // GS1合轴, 不切G, 只切S1
     runParam.s1oIdx = gS1Index * runParam.qSNumInOneBlock;
     if constexpr (IS_SPLIT_G) {
-        runParam.goIdx = (aicIdx % 2 == 0) ? 0 :
-            fused_quant_scatter_copy_sfa::SPLIT_HEAD_PARTITION_SIZE;
+        runParam.goIdx = (aicIdx % 2 == 0) ? 0 : fused_quant_scatter_copy_sfa::SPLIT_HEAD_PARTITION_SIZE;
     } else {
         runParam.goIdx = 0;
     }
@@ -627,7 +623,8 @@ __aicore__ inline void FusedQuantScatterCopySparseFlashAttentionMla<CubeBlockTyp
 
 template <typename CubeBlockType, typename VecBlockType>
 __aicore__ inline void FusedQuantScatterCopySparseFlashAttentionMla<CubeBlockType, VecBlockType>::SetRunInfo(
-    RunInfo &runInfo, RunParamStr &runParam, int64_t taskId, int64_t s2LoopCount, int64_t s2LoopLimit, int64_t multiCoreInnerIdx)
+    RunInfo &runInfo, RunParamStr &runParam, int64_t taskId, int64_t s2LoopCount, int64_t s2LoopLimit,
+    int64_t multiCoreInnerIdx)
 {
     if (s2LoopCount < runParam.kvLoopEndIdx) {
         runInfo.s2StartIdx = runParam.s2LineStartIdx;
@@ -644,8 +641,7 @@ __aicore__ inline void FusedQuantScatterCopySparseFlashAttentionMla<CubeBlockTyp
 
         runInfo.multiCoreInnerIdx = multiCoreInnerIdx;
         runInfo.multiCoreIdxMod2 = multiCoreInnerIdx & 1;
-        runInfo.multiCoreIdxMod3 = multiCoreInnerIdx %
-            fused_quant_scatter_copy_sfa::ATTENTION_PIPELINE_STAGE_COUNT;
+        runInfo.multiCoreIdxMod3 = multiCoreInnerIdx % fused_quant_scatter_copy_sfa::ATTENTION_PIPELINE_STAGE_COUNT;
     }
 
     runInfo.s2LoopLimit = s2LoopLimit;
@@ -693,5 +689,5 @@ __aicore__ inline void FusedQuantScatterCopySparseFlashAttentionMla<CubeBlockTyp
         runInfo.s2AlignedSize = Align(runInfo.s2RealSize);
     }
 }
-}
-#endif // FUSED_QUANT_SCATTER_COPY_SPARSE_FLASH_ATTENTION_KERNEL_MLA_H
+}  // namespace BaseApi
+#endif  // FUSED_QUANT_SCATTER_COPY_SPARSE_FLASH_ATTENTION_KERNEL_MLA_H

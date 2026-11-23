@@ -18,8 +18,7 @@
 
 #include "ascendc/host_api/tiling/template_argument.h"
 
-ASCENDC_TPL_ARGS_DECL(FusedQuantScatterCopySparseFlashAttention,
-    ASCENDC_TPL_BOOL_DECL(SPLIT_HEADS, 0, 1));
+ASCENDC_TPL_ARGS_DECL(FusedQuantScatterCopySparseFlashAttention, ASCENDC_TPL_BOOL_DECL(SPLIT_HEADS, 0, 1));
 ASCENDC_TPL_SEL(ASCENDC_TPL_ARGS_SEL(ASCENDC_TPL_BOOL_SEL(SPLIT_HEADS, 0, 1)));
 
 #endif

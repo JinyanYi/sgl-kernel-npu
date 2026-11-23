@@ -49,21 +49,18 @@ constexpr uint32_t SPLIT_HEAD_PARTITION_SIZE = MAX_QUERY_HEAD_COUNT / 2;
 constexpr uint32_t MAX_BLOCKS_PER_REQUEST = 2048;
 
 static_assert(QUERY_DIM == ATTENTION_OUTPUT_DIM + ROPE_DIM,
-    "query dimension must contain the latent and RoPE dimensions");
+              "query dimension must contain the latent and RoPE dimensions");
 static_assert(PACKED_KV_ROW_BYTES == ATTENTION_OUTPUT_DIM + ROPE_DIM * QUERY_ELEMENT_BYTES +
-    ATTENTION_OUTPUT_DIM / C8_QUANT_GROUP_SIZE * SCALE_ELEMENT_BYTES,
-    "packed C8 rows must contain latent, RoPE and scale payloads");
-static_assert(ALIGNED_KV_ROW_BYTES >= PACKED_KV_ROW_BYTES,
-    "aligned KV rows must contain the packed C8 payload");
-static_assert(ALIGNED_KV_ROW_BYTES % DATA_BLOCK_BYTES == 0,
-    "aligned KV rows must contain complete data blocks");
-static_assert(FUSED_MISS_CAPACITY <= TOPK_CAPACITY,
-    "fused misses must fit one TopK row");
+                                         ATTENTION_OUTPUT_DIM / C8_QUANT_GROUP_SIZE * SCALE_ELEMENT_BYTES,
+              "packed C8 rows must contain latent, RoPE and scale payloads");
+static_assert(ALIGNED_KV_ROW_BYTES >= PACKED_KV_ROW_BYTES, "aligned KV rows must contain the packed C8 payload");
+static_assert(ALIGNED_KV_ROW_BYTES % DATA_BLOCK_BYTES == 0, "aligned KV rows must contain complete data blocks");
+static_assert(FUSED_MISS_CAPACITY <= TOPK_CAPACITY, "fused misses must fit one TopK row");
 
 FQSCSFA_CONTRACT_INLINE uint64_t AttentionWorkspaceBytes(uint32_t usedCoreCount)
 {
-    return static_cast<uint64_t>(usedCoreCount) * ATTENTION_PIPELINE_STAGE_COUNT *
-        CACHE_BLOCK_SIZE * QUERY_DIM * QUERY_ELEMENT_BYTES;
+    return static_cast<uint64_t>(usedCoreCount) * ATTENTION_PIPELINE_STAGE_COUNT * CACHE_BLOCK_SIZE * QUERY_DIM *
+           QUERY_ELEMENT_BYTES;
 }
 
 FQSCSFA_CONTRACT_INLINE uint64_t MissPrefetchRowBytes()
@@ -78,24 +75,20 @@ FQSCSFA_CONTRACT_INLINE uint64_t MissPrefetchRowOffset(uint32_t queryIndex)
 
 FQSCSFA_CONTRACT_INLINE uint64_t UserWorkspaceBytes(uint32_t usedCoreCount, uint32_t queryCount)
 {
-    return AttentionWorkspaceBytes(usedCoreCount) +
-        static_cast<uint64_t>(queryCount) * MissPrefetchRowBytes();
+    return AttentionWorkspaceBytes(usedCoreCount) + static_cast<uint64_t>(queryCount) * MissPrefetchRowBytes();
 }
 
 FQSCSFA_CONTRACT_INLINE bool IsSupportedHeadCount(uint32_t heads)
 {
-    return heads >= MIN_QUERY_HEAD_COUNT && heads <= MAX_QUERY_HEAD_COUNT &&
-        (heads & (heads - 1)) == 0;
+    return heads >= MIN_QUERY_HEAD_COUNT && heads <= MAX_QUERY_HEAD_COUNT && (heads & (heads - 1)) == 0;
 }
 
-FQSCSFA_CONTRACT_INLINE bool IsValidQuerySegment(
-    int32_t previous, int32_t end, int32_t total)
+FQSCSFA_CONTRACT_INLINE bool IsValidQuerySegment(int32_t previous, int32_t end, int32_t total)
 {
-    return end > previous && end <= total &&
-        end - previous <= static_cast<int32_t>(MAX_QUERY_COUNT);
+    return end > previous && end <= total && end - previous <= static_cast<int32_t>(MAX_QUERY_COUNT);
 }
 
-} // namespace fused_quant_scatter_copy_sfa
+}  // namespace fused_quant_scatter_copy_sfa
 
 #undef FQSCSFA_CONTRACT_INLINE
 

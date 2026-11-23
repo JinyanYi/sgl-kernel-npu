@@ -95,9 +95,9 @@ struct BufferInfo {
     }
 
     static constexpr HardEvent EventP2C =
-        ConsWaitProdStatus(); // 生产者到消费者方向的HardEvent：消费者等生产者提供/生产者通知消费者已生成
+        ConsWaitProdStatus();  // 生产者到消费者方向的HardEvent：消费者等生产者提供/生产者通知消费者已生成
     static constexpr HardEvent EventC2P =
-        ProdWaitConsStatus(); // 消费者到生产者方向的HardEvent：生产者等消费者消耗/消费者通知生产者已消耗’
+        ProdWaitConsStatus();  // 消费者到生产者方向的HardEvent：生产者等消费者消耗/消费者通知生产者已消耗’
     static constexpr TPosition Position = GetTPosition();
 };
 
@@ -107,16 +107,15 @@ struct BufferInfo {
 // L0B buffer的生产者为MTE1，消费者为M
 // L0C buffer的生产者为M，消费者为FIX
 template <BufferType bufferType, SyncType syncType = SyncType::INNER_CORE_SYNC>
-class Buffer {
+class Buffer
+{
     using TensorType = std::conditional_t<bufferType == BufferType::GM, GlobalTensor<uint8_t>, LocalTensor<uint8_t>>;
 
     template <typename T>
     using TargetTensorType = std::conditional_t<bufferType == BufferType::GM, GlobalTensor<T>, LocalTensor<T>>;
 
 public:
-    __aicore__ inline Buffer()
-    {
-    }
+    __aicore__ inline Buffer() {}
     __aicore__ inline Buffer(TensorType tensor, uint32_t size)
     {
         tensor_ = tensor;
@@ -136,7 +135,7 @@ public:
     __aicore__ inline void Init()
     {
         if constexpr (syncType == SyncType::INNER_CORE_SYNC) {
-            p2cEventId_ = GetTPipePtr()->AllocEventID<BufferInfo<bufferType>::EventP2C>(); // 确保只能被调用一次
+            p2cEventId_ = GetTPipePtr()->AllocEventID<BufferInfo<bufferType>::EventP2C>();  // 确保只能被调用一次
             c2pEventId_ = GetTPipePtr()->AllocEventID<BufferInfo<bufferType>::EventC2P>();
             SetFlag<BufferInfo<bufferType>::EventC2P>(c2pEventId_);
         }
@@ -146,7 +145,7 @@ public:
     {
         if constexpr (syncType == SyncType::INNER_CORE_SYNC) {
             WaitFlag<BufferInfo<bufferType>::EventC2P>(c2pEventId_);
-            GetTPipePtr()->ReleaseEventID<BufferInfo<bufferType>::EventP2C>(p2cEventId_); // 确保只能被调用一次
+            GetTPipePtr()->ReleaseEventID<BufferInfo<bufferType>::EventP2C>(p2cEventId_);  // 确保只能被调用一次
             GetTPipePtr()->ReleaseEventID<BufferInfo<bufferType>::EventC2P>(c2pEventId_);
         }
     }
@@ -156,9 +155,9 @@ public:
     {
         if constexpr (syncType == SyncType::INNER_CORE_SYNC) {
             if constexpr (EventType == BufferInfo<bufferType>::EventP2C) {
-                WaitFlag<BufferInfo<bufferType>::EventP2C>(p2cEventId_); // 消费者等待生产者完成生产
+                WaitFlag<BufferInfo<bufferType>::EventP2C>(p2cEventId_);  // 消费者等待生产者完成生产
             } else {
-                WaitFlag<BufferInfo<bufferType>::EventC2P>(c2pEventId_); // 生产者等待消费者完成消费
+                WaitFlag<BufferInfo<bufferType>::EventC2P>(c2pEventId_);  // 生产者等待消费者完成消费
             }
         }
     }
@@ -168,16 +167,16 @@ public:
     {
         if constexpr (syncType == SyncType::INNER_CORE_SYNC) {
             if constexpr (EventType == BufferInfo<bufferType>::EventP2C) {
-                SetFlag<BufferInfo<bufferType>::EventP2C>(p2cEventId_); // 生产者通知消费者已完成生产
+                SetFlag<BufferInfo<bufferType>::EventP2C>(p2cEventId_);  // 生产者通知消费者已完成生产
             } else {
-                SetFlag<BufferInfo<bufferType>::EventC2P>(c2pEventId_); // 消费者通知生产者已完成消费
+                SetFlag<BufferInfo<bufferType>::EventC2P>(c2pEventId_);  // 消费者通知生产者已完成消费
             }
         }
     }
 
     __aicore__ inline void SetEventID()
     {
-        p2cEventId_ = GetTPipePtr()->AllocEventID<BufferInfo<bufferType>::EventP2C>(); // 确保只能被调用一次
+        p2cEventId_ = GetTPipePtr()->AllocEventID<BufferInfo<bufferType>::EventP2C>();  // 确保只能被调用一次
         c2pEventId_ = GetTPipePtr()->AllocEventID<BufferInfo<bufferType>::EventC2P>();
     }
 
@@ -185,9 +184,9 @@ public:
     __aicore__ inline TEventID GetEventID()
     {
         if constexpr (EventType == BufferInfo<bufferType>::EventP2C) {
-            return p2cEventId_; // 生产者通知消费者已完成生产
+            return p2cEventId_;  // 生产者通知消费者已完成生产
         } else {
-            return c2pEventId_; // 消费者通知生产者已完成消费
+            return c2pEventId_;  // 消费者通知生产者已完成消费
         }
     }
 
@@ -209,8 +208,8 @@ private:
     uint32_t size_;
     TEventID p2cEventId_;
     TEventID c2pEventId_;
-    uint32_t id0_; // 用作正向同步：生产者通知消费者，或者消费者等待生产者；
-    uint32_t id1_; // 用作反向同步：消费者通知生产者，或者生产者等待消费者；
+    uint32_t id0_;  // 用作正向同步：生产者通知消费者，或者消费者等待生产者；
+    uint32_t id1_;  // 用作反向同步：消费者通知生产者，或者生产者等待消费者；
 };
-} // namespace fa_base_matmul
+}  // namespace fa_base_matmul
 #endif

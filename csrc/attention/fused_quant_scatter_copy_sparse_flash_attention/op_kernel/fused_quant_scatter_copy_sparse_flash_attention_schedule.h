@@ -32,8 +32,7 @@ constexpr uint32_t SOURCE_GATHER_ROWS = 16;
 constexpr uint32_t SOURCE_GATHER_BUFFER_COUNT = 2;
 constexpr uint32_t MISS_PREFETCH_ROWS = 4;
 constexpr uint32_t BITMAP_WORD_BITS = 32;
-constexpr uint32_t OWNER_BITMAP_WORD_COUNT =
-    (COPY_CAPACITY + BITMAP_WORD_BITS - 1) / BITMAP_WORD_BITS;
+constexpr uint32_t OWNER_BITMAP_WORD_COUNT = (COPY_CAPACITY + BITMAP_WORD_BITS - 1) / BITMAP_WORD_BITS;
 constexpr uint32_t OWNER_SLOT_CAPACITY = OWNER_BITMAP_WORD_COUNT * BITMAP_WORD_BITS;
 constexpr uint32_t NORMAL_AIV_SLICE_WIDTH = 64;
 constexpr uint32_t SPLIT_HEAD_AIV_SLICE_WIDTH = 32;
@@ -47,30 +46,26 @@ enum class PackedCopyMode : uint32_t {
     REFRESH_SUFFIX = 2,
 };
 
-static_assert(TOPK_CAPACITY % GATHER_REGION_SIZE == 0,
-    "TopK rows must contain complete gather regions");
-static_assert(GATHER_REGION_SIZE % CACHE_BLOCK_SIZE == 0,
-    "gather regions must contain complete S2 tiles");
-static_assert(GATHER_BATCH_PERIOD <= GATHER_REGION_COUNT,
-    "batch rotation must select a valid gather region");
+static_assert(TOPK_CAPACITY % GATHER_REGION_SIZE == 0, "TopK rows must contain complete gather regions");
+static_assert(GATHER_REGION_SIZE % CACHE_BLOCK_SIZE == 0, "gather regions must contain complete S2 tiles");
+static_assert(GATHER_BATCH_PERIOD <= GATHER_REGION_COUNT, "batch rotation must select a valid gather region");
 static_assert(NORMAL_AIV_SLICE_WIDTH * NORMAL_AIV_PARTITION_COUNT == CACHE_BLOCK_SIZE,
-    "normal head scheduling must split an S2 tile across two AIVs");
+              "normal head scheduling must split an S2 tile across two AIVs");
 static_assert(SPLIT_HEAD_AIV_SLICE_WIDTH * SPLIT_HEAD_AIV_PARTITION_COUNT == CACHE_BLOCK_SIZE,
-    "split-head scheduling must split an S2 tile across four AIVs");
-static_assert(SOURCE_GATHER_BUFFER_COUNT == 2,
-    "source gather uses xor to rotate two writeback buffers");
+              "split-head scheduling must split an S2 tile across four AIVs");
+static_assert(SOURCE_GATHER_BUFFER_COUNT == 2, "source gather uses xor to rotate two writeback buffers");
 static_assert(OWNER_SLOT_CAPACITY >= COPY_CAPACITY,
-    "owner bitmap must cover every request-level miss destination slot");
+              "owner bitmap must cover every request-level miss destination slot");
 static_assert(OWNER_SLOT_CAPACITY - COPY_CAPACITY < BITMAP_WORD_BITS,
-    "owner bitmap must not contain an unnecessary full word");
+              "owner bitmap must not contain an unnecessary full word");
 // Request-level union count, not per-query misses or the sum over the batch.
 FQSCSFA_SCHEDULE_INLINE bool NeedsUnionCopy(int32_t unionCount)
 {
     return unionCount > UNION_COPY_THRESHOLD;
 }
 FQSCSFA_SCHEDULE_INLINE PackedCopyMode UpdatePackedCopyMode(PackedCopyMode mode, int32_t unionCount,
-    int32_t cacheTokenCount, int32_t maxRouteMiss, bool fullVisible, bool residentEnabled,
-    bool nativeLimPlan)
+                                                            int32_t cacheTokenCount, int32_t maxRouteMiss,
+                                                            bool fullVisible, bool residentEnabled, bool nativeLimPlan)
 {
     if (unionCount <= 0) return mode;
     if (!fullVisible) return NeedsUnionCopy(unionCount) ? PackedCopyMode::COMPLETE : mode;
@@ -105,8 +100,8 @@ FQSCSFA_SCHEDULE_INLINE uint32_t GatherIndex(uint32_t batch, uint32_t index)
     if (index >= TOPK_CAPACITY) return index;
     const uint32_t region = index / GATHER_REGION_SIZE;
     const uint32_t regionOffset = index % GATHER_REGION_SIZE;
-    const uint32_t rotatedRegion = (GATHER_REGION_COUNT - 1 + GATHER_REGION_COUNT -
-        batch % GATHER_BATCH_PERIOD - region) % GATHER_REGION_COUNT;
+    const uint32_t rotatedRegion =
+        (GATHER_REGION_COUNT - 1 + GATHER_REGION_COUNT - batch % GATHER_BATCH_PERIOD - region) % GATHER_REGION_COUNT;
     return rotatedRegion * GATHER_REGION_SIZE + regionOffset;
 }
 struct GatherBlockPlan {
@@ -118,17 +113,17 @@ struct OwnerScanPlan {
     bool reset;
 };
 // Reuse earlier-query ownership only within the same, forward-moving request.
-FQSCSFA_SCHEDULE_INLINE OwnerScanPlan PlanOwnerScan(int32_t previousBatch, int32_t previousQuery,
-    uint32_t batch, uint32_t queryBegin, uint32_t query)
+FQSCSFA_SCHEDULE_INLINE OwnerScanPlan PlanOwnerScan(int32_t previousBatch, int32_t previousQuery, uint32_t batch,
+                                                    uint32_t queryBegin, uint32_t query)
 {
     const bool reset = previousBatch != static_cast<int32_t>(batch) ||
-        previousQuery < static_cast<int32_t>(queryBegin) || previousQuery > static_cast<int32_t>(query);
+                       previousQuery < static_cast<int32_t>(queryBegin) || previousQuery > static_cast<int32_t>(query);
     return {reset ? queryBegin : static_cast<uint32_t>(previousQuery), reset};
 }
 // One S2 tile never crosses a gather-region permutation boundary.
 // Its AIV slice [start,start+count) is contiguous after mapping as well.
-FQSCSFA_SCHEDULE_INLINE GatherBlockPlan PlanGatherBlock(uint32_t batch, uint32_t tileBase,
-    uint32_t start, uint32_t count, uint32_t misses)
+FQSCSFA_SCHEDULE_INLINE GatherBlockPlan PlanGatherBlock(uint32_t batch, uint32_t tileBase, uint32_t start,
+                                                        uint32_t count, uint32_t misses)
 {
     const uint32_t base = misses == 0 ? tileBase : GatherIndex(batch, tileBase);
     return {base, count != 0 && base + start < misses};
@@ -139,6 +134,6 @@ FQSCSFA_SCHEDULE_INLINE bool OwnsMissIndex(uint32_t index, uint32_t aiv, bool sp
     const uint32_t partitions = splitHeads ? SPLIT_HEAD_AIV_PARTITION_COUNT : NORMAL_AIV_PARTITION_COUNT;
     return (index % CACHE_BLOCK_SIZE) / width == aiv % partitions;
 }
-} // namespace fused_quant_scatter_copy_sfa
+}  // namespace fused_quant_scatter_copy_sfa
 #undef FQSCSFA_SCHEDULE_INLINE
 #endif

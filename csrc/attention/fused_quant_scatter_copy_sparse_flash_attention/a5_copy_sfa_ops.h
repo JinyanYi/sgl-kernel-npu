@@ -24,7 +24,6 @@ void fused_quant_scatter_copy_sparse_flash_attention_v2(
     const at::Tensor &miss_dst_slots, const at::Tensor &miss_counts, double scale_value, at::Tensor attention_out,
     const std::optional<at::Tensor> &current, const std::optional<at::Tensor> &positions,
     const std::optional<at::Tensor> &current_valid, const std::optional<at::Tensor> &request_slots,
-    const std::optional<at::Tensor> &req_to_token, const std::optional<at::Tensor> &resident_end,
-    bool native_lim_plan);
+    const std::optional<at::Tensor> &req_to_token, const std::optional<at::Tensor> &resident_end, bool native_lim_plan);
 
 }  // namespace sglang::npu_kernel

@@ -25,18 +25,18 @@
 using AscendC::GlobalTensor;
 
 // ----------------------------------------------ActualSeqLensParser--------------------------------
-enum class ActualSeqLensMode
-{
+enum class ActualSeqLensMode {
     BY_BATCH = 0,
     ACCUM = 1,
 };
 
 template <ActualSeqLensMode MODE, typename ACTLEN_T = uint64_t>
-class ActualSeqLensParser {
-};
+class ActualSeqLensParser
+{};
 
 template <typename ACTLEN_T>
-class ActualSeqLensParser<ActualSeqLensMode::ACCUM, ACTLEN_T> {
+class ActualSeqLensParser<ActualSeqLensMode::ACCUM, ACTLEN_T>
+{
 public:
     __aicore__ inline ActualSeqLensParser() = default;
 
@@ -79,13 +79,15 @@ public:
     {
         return actualSeqLengthsGm.GetValue(actualLenDims - 1);
     }
+
 private:
     GlobalTensor<ACTLEN_T> actualSeqLengthsGm;
     uint32_t actualLenDims;
 };
 
 template <typename ACTLEN_T>
-class ActualSeqLensParser<ActualSeqLensMode::BY_BATCH, ACTLEN_T> {
+class ActualSeqLensParser<ActualSeqLensMode::BY_BATCH, ACTLEN_T>
+{
 public:
     __aicore__ inline ActualSeqLensParser() = default;
 
@@ -111,6 +113,7 @@ public:
     {
         return actualLenDims;
     }
+
 private:
     GlobalTensor<ACTLEN_T> actualSeqLengthsGm;
     uint32_t actualLenDims = 0;
@@ -118,7 +121,8 @@ private:
 };
 
 // ----------------------------------------------BlockTableParser--------------------------------
-class BlockTableParser {
+class BlockTableParser
+{
 public:
     __aicore__ inline BlockTableParser() = default;
 
@@ -132,6 +136,7 @@ public:
     {
         return blockTableGm.GetValue(bIdx * maxblockNumPerBatch + blockIdxInBatch);
     }
+
 private:
     GlobalTensor<int32_t> blockTableGm;
     uint32_t maxblockNumPerBatch;

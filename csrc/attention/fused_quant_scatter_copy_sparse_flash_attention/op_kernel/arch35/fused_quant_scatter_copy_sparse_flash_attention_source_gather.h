@@ -15,13 +15,12 @@
 
 // Included inside BaseApi, after QSFAVectorService is fully defined.
 TEMPLATES_DEF_NO_DEFAULT
-__aicore__ inline void QSFAVectorService<TEMPLATE_ARGS>::EnqueueSourceAwareKv(
-    uint32_t indexBase, int64_t first, uint32_t count, int64_t *writebacks)
+__aicore__ inline void QSFAVectorService<TEMPLATE_ARGS>::EnqueueSourceAwareKv(uint32_t indexBase, int64_t first,
+                                                                              uint32_t count, int64_t *writebacks)
 {
     auto packed = stage0InQue.template AllocTensor<uint8_t>();
     const DataCopyExtParams params{1, fused_quant_scatter_copy_sfa::PACKED_KV_ROW_BYTES, 0, 0, 0};
-    const DataCopyPadExtParams<uint8_t> pad{
-        true, 0, fused_quant_scatter_copy_sfa::KV_ROW_PADDING_BYTES, 0};
+    const DataCopyPadExtParams<uint8_t> pad{true, 0, fused_quant_scatter_copy_sfa::KV_ROW_PADDING_BYTES, 0};
     for (uint32_t j = 0; j < count; ++j) {
         // Mapping is constant across this contiguous AIV slice, not per token.
         const uint32_t index = indexBase + first + j;
@@ -30,7 +29,8 @@ __aicore__ inline void QSFAVectorService<TEMPLATE_ARGS>::EnqueueSourceAwareKv(
             // Prefetch already resolved ownership and persisted the owner's row.
             // Do not reload source IDs/block tables just to read our workspace.
             DataCopyPad(packed[j * fused_quant_scatter_copy_sfa::ALIGNED_KV_ROW_BYTES],
-                prefetchGm[prefetchRow + index * fused_quant_scatter_copy_sfa::ALIGNED_KV_ROW_BYTES], params, pad);
+                        prefetchGm[prefetchRow + index * fused_quant_scatter_copy_sfa::ALIGNED_KV_ROW_BYTES], params,
+                        pad);
             continue;
         }
         const int32_t slot = SparseIndicesGm.GetValue(queryRow + index);
@@ -39,24 +39,28 @@ __aicore__ inline void QSFAVectorService<TEMPLATE_ARGS>::EnqueueSourceAwareKv(
             const int32_t source = sourcesGm.GetValue(queryRow + index);
             const int32_t currentRow = CurrentRow(source);
             if (currentRow >= 0) {
-                DataCopyPad(packed[j * fused_quant_scatter_copy_sfa::ALIGNED_KV_ROW_BYTES],
-                    currentGm[static_cast<int64_t>(currentRow) *
-                        fused_quant_scatter_copy_sfa::PACKED_KV_ROW_BYTES], params, pad);
+                DataCopyPad(
+                    packed[j * fused_quant_scatter_copy_sfa::ALIGNED_KV_ROW_BYTES],
+                    currentGm[static_cast<int64_t>(currentRow) * fused_quant_scatter_copy_sfa::PACKED_KV_ROW_BYTES],
+                    params, pad);
             } else {
-                const int64_t offset = fused_quant_scatter_copy_sfa::RowOffsetInRequest(dramTableGm,
-                    copyTiling->dramMaxBlocks, copyTiling->dramPhysicalBlocks, dramTableRow, source);
+                const int64_t offset = fused_quant_scatter_copy_sfa::RowOffsetInRequest(
+                    dramTableGm, copyTiling->dramMaxBlocks, copyTiling->dramPhysicalBlocks, dramTableRow, source);
                 ASSERT(offset >= 0);
-                DataCopyPad(packed[j * fused_quant_scatter_copy_sfa::ALIGNED_KV_ROW_BYTES], dramGm[offset], params, pad);
+                DataCopyPad(packed[j * fused_quant_scatter_copy_sfa::ALIGNED_KV_ROW_BYTES], dramGm[offset], params,
+                            pad);
             }
             if ((earlierMissSlots[slot / fused_quant_scatter_copy_sfa::BITMAP_WORD_BITS] &
-                (1U << (slot % fused_quant_scatter_copy_sfa::BITMAP_WORD_BITS))) == 0) {
-                writebacks[j] = fused_quant_scatter_copy_sfa::RowOffsetInRequest(blockTableGm,
-                    copyTiling->baseParams.maxBlockNumPerBatch, copyTiling->hbmPhysicalBlocks, hbmTableRow, slot);
+                 (1U << (slot % fused_quant_scatter_copy_sfa::BITMAP_WORD_BITS))) == 0) {
+                writebacks[j] = fused_quant_scatter_copy_sfa::RowOffsetInRequest(
+                    blockTableGm, copyTiling->baseParams.maxBlockNumPerBatch, copyTiling->hbmPhysicalBlocks,
+                    hbmTableRow, slot);
                 ASSERT(writebacks[j] >= 0);
             }
         } else {
-            const int64_t offset = fused_quant_scatter_copy_sfa::RowOffsetInRequest(blockTableGm,
-                copyTiling->baseParams.maxBlockNumPerBatch, copyTiling->hbmPhysicalBlocks, hbmTableRow, slot);
+            const int64_t offset = fused_quant_scatter_copy_sfa::RowOffsetInRequest(
+                blockTableGm, copyTiling->baseParams.maxBlockNumPerBatch, copyTiling->hbmPhysicalBlocks, hbmTableRow,
+                slot);
             ASSERT(offset >= 0);
             DataCopyPad(packed[j * fused_quant_scatter_copy_sfa::ALIGNED_KV_ROW_BYTES], keyGm[offset], params, pad);
         }
@@ -67,20 +71,21 @@ __aicore__ inline void QSFAVectorService<TEMPLATE_ARGS>::EnqueueSourceAwareKv(
 TEMPLATES_DEF_NO_DEFAULT
 __aicore__ inline void QSFAVectorService<TEMPLATE_ARGS>::ProcessSourceAwareKv(
     Buffer<BufferType::L1, SyncType::CROSS_CORE_SYNC_FORWARD> &outputL1,
-    Buffer<BufferType::GM, SyncType::CROSS_CORE_SYNC_BACKWARD> &v0ResGm,
-    const RunInfo &runInfo, ConstInfo &constInfo, uint32_t indexBase)
+    Buffer<BufferType::GM, SyncType::CROSS_CORE_SYNC_BACKWARD> &v0ResGm, const RunInfo &runInfo, ConstInfo &constInfo,
+    uint32_t indexBase)
 {
     PrepareOwners(runInfo.boIdx, queryIndex);
     int64_t writebacks[fused_quant_scatter_copy_sfa::SOURCE_GATHER_BUFFER_COUNT]
-        [fused_quant_scatter_copy_sfa::SOURCE_GATHER_ROWS];
+                      [fused_quant_scatter_copy_sfa::SOURCE_GATHER_ROWS];
     uint32_t lane = 0;
-    EnqueueSourceAwareKv(indexBase, sparseS2Start,
+    EnqueueSourceAwareKv(
+        indexBase, sparseS2Start,
         Min(static_cast<int64_t>(fused_quant_scatter_copy_sfa::SOURCE_GATHER_ROWS), sparseS2End - sparseS2Start),
         writebacks[lane]);
     for (int64_t first = sparseS2Start; first < sparseS2End;
-        first += fused_quant_scatter_copy_sfa::SOURCE_GATHER_ROWS) {
-        const uint32_t count = Min(
-            static_cast<int64_t>(fused_quant_scatter_copy_sfa::SOURCE_GATHER_ROWS), sparseS2End - first);
+         first += fused_quant_scatter_copy_sfa::SOURCE_GATHER_ROWS) {
+        const uint32_t count =
+            Min(static_cast<int64_t>(fused_quant_scatter_copy_sfa::SOURCE_GATHER_ROWS), sparseS2End - first);
         auto packed = stage0InQue.template DeQue<uint8_t>();
         const auto readEvent = static_cast<event_t>(GetTPipePtr()->FetchEventID(HardEvent::MTE2_MTE3));
         // Fence this batch BEFORE issuing the next MTE2 read: its writeback must
@@ -89,9 +94,9 @@ __aicore__ inline void QSFAVectorService<TEMPLATE_ARGS>::ProcessSourceAwareKv(
         WaitFlag<HardEvent::MTE2_MTE3>(readEvent);
         if (first + fused_quant_scatter_copy_sfa::SOURCE_GATHER_ROWS < sparseS2End) {
             EnqueueSourceAwareKv(indexBase, first + fused_quant_scatter_copy_sfa::SOURCE_GATHER_ROWS,
-                Min(static_cast<int64_t>(fused_quant_scatter_copy_sfa::SOURCE_GATHER_ROWS),
-                    sparseS2End - first - fused_quant_scatter_copy_sfa::SOURCE_GATHER_ROWS),
-                writebacks[lane ^ 1U]);
+                                 Min(static_cast<int64_t>(fused_quant_scatter_copy_sfa::SOURCE_GATHER_ROWS),
+                                     sparseS2End - first - fused_quant_scatter_copy_sfa::SOURCE_GATHER_ROWS),
+                                 writebacks[lane ^ 1U]);
         }
         bool wrote = false;
         // MTE3 persistence and V dequantization both consume the same DRAM read.
@@ -100,12 +105,11 @@ __aicore__ inline void QSFAVectorService<TEMPLATE_ARGS>::ProcessSourceAwareKv(
             if (writebacks[lane][j] < 0) continue;
             // Only coalesce adjacent owner rows in this bank. Prefetched rows,
             // earlier-query owners and hits retain -1 and must not be persisted.
-            const auto plan = fused_quant_scatter_copy_sfa::PlanMissWritebackPair(writebacks[lane][j],
-                j + 1 < count ? writebacks[lane][j + 1] : -1);
-            DataCopyPad(keyGm[writebacks[lane][j]],
-                packed[j * fused_quant_scatter_copy_sfa::ALIGNED_KV_ROW_BYTES],
-                DataCopyExtParams{plan.blockCount, fused_quant_scatter_copy_sfa::PACKED_KV_ROW_BYTES,
-                    0, plan.dstStride, 0});
+            const auto plan = fused_quant_scatter_copy_sfa::PlanMissWritebackPair(
+                writebacks[lane][j], j + 1 < count ? writebacks[lane][j + 1] : -1);
+            DataCopyPad(keyGm[writebacks[lane][j]], packed[j * fused_quant_scatter_copy_sfa::ALIGNED_KV_ROW_BYTES],
+                        DataCopyExtParams{plan.blockCount, fused_quant_scatter_copy_sfa::PACKED_KV_ROW_BYTES, 0,
+                                          plan.dstStride, 0});
             j += plan.blockCount - 1;
             wrote = true;
         }
@@ -119,16 +123,18 @@ __aicore__ inline void QSFAVectorService<TEMPLATE_ARGS>::ProcessSourceAwareKv(
         stage0InQue.FreeTensor(packed);
         stage0OutQue.EnQue(dequant);
         dequant = stage0OutQue.template DeQue<Q_T>();
-        if constexpr (IS_SPLIT_G) CopyOutKvUb2Gm(v0ResGm, dequant, count, first, runInfo, constInfo);
-        else CopyOutKvUb2L1(outputL1, dequant, count, first, runInfo, constInfo);
+        if constexpr (IS_SPLIT_G)
+            CopyOutKvUb2Gm(v0ResGm, dequant, count, first, runInfo, constInfo);
+        else
+            CopyOutKvUb2L1(outputL1, dequant, count, first, runInfo, constInfo);
         stage0OutQue.FreeTensor(dequant);
         lane ^= 1U;
     }
 }
 
 TEMPLATES_DEF_NO_DEFAULT
-__aicore__ inline void QSFAVectorService<TEMPLATE_ARGS>::SubmitMissPrefetch(
-    const RunInfo &runInfo, ConstInfo &constInfo)
+__aicore__ inline void QSFAVectorService<TEMPLATE_ARGS>::SubmitMissPrefetch(const RunInfo &runInfo,
+                                                                            ConstInfo &constInfo)
 {
     if (!sourceAware) return;
     const uint32_t query = queryIndex;
@@ -137,7 +143,7 @@ __aicore__ inline void QSFAVectorService<TEMPLATE_ARGS>::SubmitMissPrefetch(
     // Only prefetch during the hit chunks, before this query reaches its miss chunk.
     const uint32_t logicalChunk = runInfo.s2LoopCount / fused_quant_scatter_copy_sfa::GATHER_TILES_PER_REGION;
     const uint32_t missChunk = fused_quant_scatter_copy_sfa::GATHER_REGION_COUNT - 1 -
-        runInfo.boIdx % fused_quant_scatter_copy_sfa::GATHER_BATCH_PERIOD;
+                               runInfo.boIdx % fused_quant_scatter_copy_sfa::GATHER_BATCH_PERIOD;
     if (logicalChunk >= missChunk) return;
     PrepareOwners(runInfo.boIdx, query);
     auto io = missPrefetchBuf.template Get<uint8_t>();
@@ -151,25 +157,25 @@ __aicore__ inline void QSFAVectorService<TEMPLATE_ARGS>::SubmitMissPrefetch(
         pendingIndices[pendingRows] = index;
         pendingDestinations[pendingRows] = -1;
         if ((earlierMissSlots[slot / fused_quant_scatter_copy_sfa::BITMAP_WORD_BITS] &
-            (1U << (slot % fused_quant_scatter_copy_sfa::BITMAP_WORD_BITS))) == 0) {
-            pendingDestinations[pendingRows] = fused_quant_scatter_copy_sfa::RowOffsetInRequest(blockTableGm,
-                copyTiling->baseParams.maxBlockNumPerBatch, copyTiling->hbmPhysicalBlocks, hbmTableRow, slot);
+             (1U << (slot % fused_quant_scatter_copy_sfa::BITMAP_WORD_BITS))) == 0) {
+            pendingDestinations[pendingRows] = fused_quant_scatter_copy_sfa::RowOffsetInRequest(
+                blockTableGm, copyTiling->baseParams.maxBlockNumPerBatch, copyTiling->hbmPhysicalBlocks, hbmTableRow,
+                slot);
             ASSERT(pendingDestinations[pendingRows] >= 0);
         }
         const int32_t currentRow = CurrentRow(source);
         if (currentRow >= 0) {
             DataCopyPad(io[pendingRows * fused_quant_scatter_copy_sfa::ALIGNED_KV_ROW_BYTES],
-                currentGm[static_cast<int64_t>(currentRow) *
-                    fused_quant_scatter_copy_sfa::PACKED_KV_ROW_BYTES],
-                DataCopyExtParams{1, fused_quant_scatter_copy_sfa::PACKED_KV_ROW_BYTES, 0, 0, 0},
-                DataCopyPadExtParams<uint8_t>{true, 0, fused_quant_scatter_copy_sfa::KV_ROW_PADDING_BYTES, 0});
+                        currentGm[static_cast<int64_t>(currentRow) * fused_quant_scatter_copy_sfa::PACKED_KV_ROW_BYTES],
+                        DataCopyExtParams{1, fused_quant_scatter_copy_sfa::PACKED_KV_ROW_BYTES, 0, 0, 0},
+                        DataCopyPadExtParams<uint8_t>{true, 0, fused_quant_scatter_copy_sfa::KV_ROW_PADDING_BYTES, 0});
         } else {
-            const auto offset = fused_quant_scatter_copy_sfa::RowOffsetInRequest(dramTableGm,
-                copyTiling->dramMaxBlocks, copyTiling->dramPhysicalBlocks, dramTableRow, source);
+            const auto offset = fused_quant_scatter_copy_sfa::RowOffsetInRequest(
+                dramTableGm, copyTiling->dramMaxBlocks, copyTiling->dramPhysicalBlocks, dramTableRow, source);
             ASSERT(offset >= 0);
             DataCopyPad(io[pendingRows * fused_quant_scatter_copy_sfa::ALIGNED_KV_ROW_BYTES], dramGm[offset],
-                DataCopyExtParams{1, fused_quant_scatter_copy_sfa::PACKED_KV_ROW_BYTES, 0, 0, 0},
-                DataCopyPadExtParams<uint8_t>{true, 0, fused_quant_scatter_copy_sfa::KV_ROW_PADDING_BYTES, 0});
+                        DataCopyExtParams{1, fused_quant_scatter_copy_sfa::PACKED_KV_ROW_BYTES, 0, 0, 0},
+                        DataCopyPadExtParams<uint8_t>{true, 0, fused_quant_scatter_copy_sfa::KV_ROW_PADDING_BYTES, 0});
         }
         ++pendingRows;
     }
@@ -187,14 +193,12 @@ __aicore__ inline void QSFAVectorService<TEMPLATE_ARGS>::CompleteMissPrefetch()
     WaitFlag<HardEvent::MTE2_MTE3>(missReadEvent);
     auto io = missPrefetchBuf.template Get<uint8_t>();
     for (uint32_t j = 0; j < pendingRows; ++j) {
-        const DataCopyExtParams params{
-            1, fused_quant_scatter_copy_sfa::PACKED_KV_ROW_BYTES, 0, 0, 0};
-        DataCopyPad(prefetchGm[prefetchRow +
-            pendingIndices[j] * fused_quant_scatter_copy_sfa::ALIGNED_KV_ROW_BYTES],
-            io[j * fused_quant_scatter_copy_sfa::ALIGNED_KV_ROW_BYTES], params);
+        const DataCopyExtParams params{1, fused_quant_scatter_copy_sfa::PACKED_KV_ROW_BYTES, 0, 0, 0};
+        DataCopyPad(prefetchGm[prefetchRow + pendingIndices[j] * fused_quant_scatter_copy_sfa::ALIGNED_KV_ROW_BYTES],
+                    io[j * fused_quant_scatter_copy_sfa::ALIGNED_KV_ROW_BYTES], params);
         if (pendingDestinations[j] >= 0) {
-            DataCopyPad(keyGm[pendingDestinations[j]],
-                io[j * fused_quant_scatter_copy_sfa::ALIGNED_KV_ROW_BYTES], params);
+            DataCopyPad(keyGm[pendingDestinations[j]], io[j * fused_quant_scatter_copy_sfa::ALIGNED_KV_ROW_BYTES],
+                        params);
         }
     }
     const auto event = static_cast<event_t>(GetTPipePtr()->FetchEventID(HardEvent::MTE3_MTE2));

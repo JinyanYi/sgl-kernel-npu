@@ -196,8 +196,7 @@ HOST_API void fused_quant_scatter_copy_sparse_flash_attention_v2(
     const at::Tensor &miss_dst_slots, const at::Tensor &miss_counts, double scale_value, at::Tensor attention_out,
     const std::optional<at::Tensor> &current, const std::optional<at::Tensor> &positions,
     const std::optional<at::Tensor> &current_valid, const std::optional<at::Tensor> &request_slots,
-    const std::optional<at::Tensor> &req_to_token, const std::optional<at::Tensor> &resident_end,
-    bool native_lim_plan)
+    const std::optional<at::Tensor> &req_to_token, const std::optional<at::Tensor> &resident_end, bool native_lim_plan)
 {
     TORCH_CHECK(query_nope.dim() == 3 && query_nope.size(0) > 0 &&
                     query_nope.size(2) == fused_quant_scatter_copy_sfa::ATTENTION_OUTPUT_DIM &&
@@ -224,8 +223,7 @@ HOST_API void fused_quant_scatter_copy_sparse_flash_attention_v2(
                         cache->scalar_type() == at::kChar,
                     "KV caches must be int8 [blocks, 128, 1, 656].");
     }
-    TORCH_CHECK(hbm_block_table.dim() == 2 && hbm_block_table.size(0) == batch_size &&
-                    hbm_block_table.size(1) > 0 &&
+    TORCH_CHECK(hbm_block_table.dim() == 2 && hbm_block_table.size(0) == batch_size && hbm_block_table.size(1) > 0 &&
                     hbm_block_table.size(1) <= fused_quant_scatter_copy_sfa::MAX_BLOCKS_PER_REQUEST &&
                     dram_block_table.dim() == 2 && dram_block_table.size(0) == batch_size &&
                     dram_block_table.size(1) > 0 &&
@@ -288,19 +286,18 @@ HOST_API void fused_quant_scatter_copy_sparse_flash_attention_v2(
         }
     }
     if (stage_resident) {
-        TORCH_CHECK(current->scalar_type() == at::kChar &&
-                        current->sizes() == at::IntArrayRef({total_queries, fused_quant_scatter_copy_sfa::PACKED_KV_ROW_BYTES}),
-                    "current must be int8 [T, 656].");
+        TORCH_CHECK(
+            current->scalar_type() == at::kChar &&
+                current->sizes() == at::IntArrayRef({total_queries, fused_quant_scatter_copy_sfa::PACKED_KV_ROW_BYTES}),
+            "current must be int8 [T, 656].");
         TORCH_CHECK(positions->scalar_type() == at::kLong && positions->sizes() == at::IntArrayRef({total_queries}) &&
-                        current_valid->scalar_type() == at::kBool &&
-                        current_valid->sizes() == positions->sizes(),
+                        current_valid->scalar_type() == at::kBool && current_valid->sizes() == positions->sizes(),
                     "positions and current_valid must be int64 [T] and bool [T].");
         TORCH_CHECK(request_slots->scalar_type() == at::kInt &&
                         request_slots->sizes() == at::IntArrayRef({batch_size}) &&
                         req_to_token->scalar_type() == at::kInt && req_to_token->dim() == 2 &&
-                        req_to_token->size(0) > 1 && req_to_token->size(0) <= UINT32_MAX &&
-                        req_to_token->size(1) > 0 && req_to_token->size(1) <= UINT32_MAX &&
-                        resident_end->scalar_type() == at::kInt &&
+                        req_to_token->size(0) > 1 && req_to_token->size(0) <= UINT32_MAX && req_to_token->size(1) > 0 &&
+                        req_to_token->size(1) <= UINT32_MAX && resident_end->scalar_type() == at::kInt &&
                         resident_end->sizes() == at::IntArrayRef({req_to_token->size(0)}),
                     "resident staging requires int32 request_slots [B], req_to_token [R, S], resident_end [R].");
     }
@@ -334,13 +331,11 @@ HOST_API void fused_quant_scatter_copy_sparse_flash_attention_v2(
     t.dramPhysicalBlocks = static_cast<uint32_t>(dram_kv_bytes.size(0));
     const FusedQuantCopySfaResidentTilingData resident_tiling{
         t, stage_resident ? static_cast<uint32_t>(req_to_token->size(0)) : 0U,
-        stage_resident ? static_cast<uint32_t>(req_to_token->size(1)) : 0U,
-        native_lim_plan ? 1U : 0U, 0U};
+        stage_resident ? static_cast<uint32_t>(req_to_token->size(1)) : 0U, native_lim_plan ? 1U : 0U, 0U};
     auto tiling =
         ge_helper::TilingTensorCache<FusedQuantCopySfaResidentTilingData>::Get(resident_tiling, "quant_copy_sfa_v2");
-    const uint64_t bytes =
-        platform->GetLibApiWorkSpaceSize() +
-        fused_quant_scatter_copy_sfa::UserWorkspaceBytes(cores, static_cast<uint32_t>(total_queries));
+    const uint64_t bytes = platform->GetLibApiWorkSpaceSize() + fused_quant_scatter_copy_sfa::UserWorkspaceBytes(
+                                                                    cores, static_cast<uint32_t>(total_queries));
     auto workspace = at::empty({static_cast<int64_t>(bytes)}, query_nope.options().dtype(at::kByte));
     void *dram = reinterpret_cast<void *>(static_cast<uintptr_t>(dram_kv_dev_ptr));
     std::vector<at::Tensor> owners{query_nope,
@@ -362,7 +357,8 @@ HOST_API void fused_quant_scatter_copy_sparse_flash_attention_v2(
                                    workspace,
                                    tiling};
     if (stage_resident) {
-        for (const auto *tensor : resident_tensors) owners.push_back(tensor->value());
+        for (const auto *tensor : resident_tensors)
+            owners.push_back(tensor->value());
     }
     auto current_ptr = stage_resident ? current->data_ptr() : nullptr;
     auto positions_ptr = stage_resident ? positions->data_ptr() : nullptr;

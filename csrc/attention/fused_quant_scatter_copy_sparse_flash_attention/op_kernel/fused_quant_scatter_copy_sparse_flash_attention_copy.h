@@ -23,18 +23,17 @@
 namespace fused_quant_scatter_copy_sfa {
 using namespace AscendC;
 
-__aicore__ inline int64_t RowOffsetInRequest(GlobalTensor<int32_t> &table, uint32_t width,
-    uint32_t blocks, uint64_t tableRow, int32_t token)
+__aicore__ inline int64_t RowOffsetInRequest(GlobalTensor<int32_t> &table, uint32_t width, uint32_t blocks,
+                                             uint64_t tableRow, int32_t token)
 {
     if (token < 0 || static_cast<uint32_t>(token) / CACHE_BLOCK_SIZE >= width) return -1;
     const int32_t block = table.GetValue(tableRow + token / CACHE_BLOCK_SIZE);
     if (block < 0 || static_cast<uint32_t>(block) >= blocks) return -1;
-    return (static_cast<int64_t>(block) * CACHE_BLOCK_SIZE + token % CACHE_BLOCK_SIZE) *
-        PACKED_KV_ROW_BYTES;
+    return (static_cast<int64_t>(block) * CACHE_BLOCK_SIZE + token % CACHE_BLOCK_SIZE) * PACKED_KV_ROW_BYTES;
 }
 
-__aicore__ inline int64_t RowOffset(GlobalTensor<int32_t> &table, uint32_t width,
-    uint32_t blocks, uint32_t batch, int32_t token)
+__aicore__ inline int64_t RowOffset(GlobalTensor<int32_t> &table, uint32_t width, uint32_t blocks, uint32_t batch,
+                                    int32_t token)
 {
     return RowOffsetInRequest(table, width, blocks, static_cast<uint64_t>(batch) * width, token);
 }
@@ -47,9 +46,10 @@ __aicore__ inline int64_t RowOffset(GlobalTensor<int32_t> &table, uint32_t width
 // attention. Cold rows and any route outside the proven fused-gather range
 // retain the complete-copy path.
 __aicore__ inline PackedCopyMode SelectCopyMode(GM_ADDR missCounts, GM_ADDR topkMissCounts, GM_ADDR ends,
-    GM_ADDR actualSeqLengthsKv, GM_ADDR numCacheTokens,
-    const FusedQuantScatterCopySparseFlashAttentionTilingData &td, bool fullVisible,
-    bool residentEnabled, bool nativeLimPlan, bool &hasShort)
+                                                GM_ADDR actualSeqLengthsKv, GM_ADDR numCacheTokens,
+                                                const FusedQuantScatterCopySparseFlashAttentionTilingData &td,
+                                                bool fullVisible, bool residentEnabled, bool nativeLimPlan,
+                                                bool &hasShort)
 {
     GlobalTensor<int32_t> c, m, q, kv, cache;
     c.SetGlobalBuffer((__gm__ int32_t *)missCounts);
@@ -68,8 +68,7 @@ __aicore__ inline PackedCopyMode SelectCopyMode(GM_ADDR missCounts, GM_ADDR topk
         ASSERT(actualKvLength >= 0 && cacheTokenCount >= 0);
         ASSERT(cacheTokenCount != 0 || n == 0);
         hasShort |= actualKvLength > 0 && cacheTokenCount == 0;
-        ASSERT(IsValidQuerySegment(
-            previous, end, static_cast<int32_t>(td.baseParams.qSeqSize)));
+        ASSERT(IsValidQuerySegment(previous, end, static_cast<int32_t>(td.baseParams.qSeqSize)));
         // Only the paired native producer guarantees a contiguous miss prefix.
         int32_t maxRouteMiss = 0;
         for (int32_t t = previous; t < end; ++t) {
@@ -77,8 +76,8 @@ __aicore__ inline PackedCopyMode SelectCopyMode(GM_ADDR missCounts, GM_ADDR topk
             ASSERT(miss >= 0 && miss <= TOPK_CAPACITY && (n != 0 || miss == 0));
             if (miss > maxRouteMiss) maxRouteMiss = miss;
         }
-        mode = UpdatePackedCopyMode(
-            mode, n, cacheTokenCount, maxRouteMiss, fullVisible, residentEnabled, nativeLimPlan);
+        mode =
+            UpdatePackedCopyMode(mode, n, cacheTokenCount, maxRouteMiss, fullVisible, residentEnabled, nativeLimPlan);
         previous = end;
     }
     ASSERT(previous == td.baseParams.qSeqSize);
@@ -98,7 +97,8 @@ struct PackedResidentInputs {
 
 // Share the same double-buffered DMA across short history, current KV,
 // and union entries. Each lane completes its pending writes before attention.
-class PackedRowTransfer {
+class PackedRowTransfer
+{
 public:
     __aicore__ inline void Init(TPipe &pipe, GM_ADDR hbm)
     {
@@ -130,7 +130,8 @@ public:
 
     __aicore__ inline void Finish(TPipe &pipe)
     {
-        while (finished_ < issued_) WriteNext();
+        while (finished_ < issued_)
+            WriteNext();
         for (uint32_t slot = 0; slot < 2; ++slot) {
             if (wrote_[slot]) WaitFlag<HardEvent::MTE3_MTE2>(writeDone_[slot]);
             pipe.ReleaseEventID<HardEvent::MTE2_MTE3>(readReady_[slot]);
@@ -158,9 +159,11 @@ private:
     uint32_t issued_ = 0, finished_ = 0;
 };
 
-class PackedResidentStage {
+class PackedResidentStage
+{
 public:
-    __aicore__ inline void Init(const PackedResidentInputs &inputs, GM_ADDR ends, GM_ADDR lengths, GM_ADDR cacheTokens, TPipe &pipe)
+    __aicore__ inline void Init(const PackedResidentInputs &inputs, GM_ADDR ends, GM_ADDR lengths, GM_ADDR cacheTokens,
+                                TPipe &pipe)
     {
         requestRows_ = inputs.requestRows;
         context_ = inputs.requestContext;
@@ -178,7 +181,10 @@ public:
         scalarEvent_ = static_cast<event_t>(pipe_->AllocEventID<HardEvent::S_MTE3>());
     }
 
-    __aicore__ inline bool Enabled() const { return requestRows_ != 0; }
+    __aicore__ inline bool Enabled() const
+    {
+        return requestRows_ != 0;
+    }
 
     __aicore__ inline void QueryRange(uint32_t batch, int32_t &start, int32_t &end)
     {
@@ -201,17 +207,17 @@ public:
     }
 
     __aicore__ inline void CopyShort(uint32_t batch, int32_t start, int32_t end, uint32_t lanes,
-                                    GlobalTensor<int8_t> &host, GlobalTensor<int32_t> &hbmTable,
-                                    const FusedQuantScatterCopySparseFlashAttentionTilingData &td,
-                                    PackedRowTransfer &transfer)
+                                     GlobalTensor<int8_t> &host, GlobalTensor<int32_t> &hbmTable,
+                                     const FusedQuantScatterCopySparseFlashAttentionTilingData &td,
+                                     PackedRowTransfer &transfer)
     {
         const int32_t request = slots_.GetValue(batch);
         const int32_t length = lengths_.GetValue(batch);
         const int32_t first = length - (end - start);
         const uint32_t pages = td.baseParams.maxBlockNumPerBatch;
         if (!LiveRequest(request, length) || cacheTokens_.GetValue(batch) != 0 || first < 0 ||
-            static_cast<uint32_t>(length) > context_ ||
-            static_cast<uint32_t>(length) > pages * CACHE_BLOCK_SIZE) return;
+            static_cast<uint32_t>(length) > context_ || static_cast<uint32_t>(length) > pages * CACHE_BLOCK_SIZE)
+            return;
         const int32_t old = residentEnd_.GetValue(request);
         const int32_t begin = old < 0 ? 0 : (old < first ? old : first);
         const int64_t hostRows = static_cast<int64_t>(td.dramPhysicalBlocks) * CACHE_BLOCK_SIZE;
@@ -250,7 +256,8 @@ public:
                     int32_t start, end;
                     QueryRange(batch, start, end);
                     const int32_t first = length - (end - start);
-                    bool contiguous = first >= 0 && static_cast<uint32_t>(length) <= context_ &&
+                    bool contiguous =
+                        first >= 0 && static_cast<uint32_t>(length) <= context_ &&
                         static_cast<uint32_t>(length) <= td.baseParams.maxBlockNumPerBatch * CACHE_BLOCK_SIZE;
                     for (int32_t row = start; contiguous && row < end; ++row) {
                         contiguous = valid_.GetValue(row) && positions_.GetValue(row) == first + row - start;
@@ -284,8 +291,8 @@ private:
     event_t scalarEvent_ = static_cast<event_t>(-1);
 };
 
-__aicore__ inline void StageKv(TPipe &pipe, GM_ADDR hbm, GM_ADDR dram, GM_ADDR ht, GM_ADDR dt,
-                               GM_ADDR missSrcIds, GM_ADDR missDstSlots, GM_ADDR missCounts,
+__aicore__ inline void StageKv(TPipe &pipe, GM_ADDR hbm, GM_ADDR dram, GM_ADDR ht, GM_ADDR dt, GM_ADDR missSrcIds,
+                               GM_ADDR missDstSlots, GM_ADDR missCounts,
                                const FusedQuantScatterCopySparseFlashAttentionTilingData &td,
                                PackedResidentStage &resident, PackedCopyMode copyMode, bool copyShort)
 {
@@ -318,8 +325,8 @@ __aicore__ inline void StageKv(TPipe &pipe, GM_ADDR hbm, GM_ADDR dram, GM_ADDR h
             for (uint32_t i = copyStart + GetBlockIdx(); i < static_cast<uint32_t>(n); i += lanes) {
                 const uint64_t p = static_cast<uint64_t>(b) * COPY_CAPACITY + i;
                 const int32_t source = sources.GetValue(p);
-                const int64_t to = RowOffset(htable, td.baseParams.maxBlockNumPerBatch,
-                                             td.hbmPhysicalBlocks, b, dests.GetValue(p));
+                const int64_t to =
+                    RowOffset(htable, td.baseParams.maxBlockNumPerBatch, td.hbmPhysicalBlocks, b, dests.GetValue(p));
                 const int32_t row = resident.CurrentRow(start, end, first, source);
                 if (row >= 0) {
                     transfer.Push(resident.current, static_cast<int64_t>(row) * PACKED_KV_ROW_BYTES, to);
@@ -333,6 +340,6 @@ __aicore__ inline void StageKv(TPipe &pipe, GM_ADDR hbm, GM_ADDR dram, GM_ADDR h
     SyncAll<false>();
 }
 
-} // namespace fused_quant_scatter_copy_sfa
+}  // namespace fused_quant_scatter_copy_sfa
 
 #endif

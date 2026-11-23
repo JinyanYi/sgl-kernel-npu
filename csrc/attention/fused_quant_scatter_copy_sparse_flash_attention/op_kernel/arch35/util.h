@@ -16,18 +16,18 @@ constexpr static int32_t repeatMaxBytes = 256;
 constexpr static int32_t repeatMaxTimes = 255;
 constexpr static int32_t repeatMaxSize = repeatMaxBytes / 4;
 
-using AscendC::LocalTensor;
-using AscendC::GlobalTensor;
-using AscendC::DataFormat;
-using AscendC::ShapeInfo;
-using AscendC::DataCopyParams;
-using AscendC::DataCopyExtParams;
-using AscendC::DataCopyPadParams;
-using AscendC::DataCopyPadExtParams;
 using AscendC::BinaryRepeatParams;
-using AscendC::IsSameType;
+using AscendC::DataCopyExtParams;
+using AscendC::DataCopyPadExtParams;
+using AscendC::DataCopyPadParams;
+using AscendC::DataCopyParams;
+using AscendC::DataFormat;
+using AscendC::GlobalTensor;
 using AscendC::HardEvent;
+using AscendC::IsSameType;
+using AscendC::LocalTensor;
 using AscendC::SetFlag;
+using AscendC::ShapeInfo;
 using AscendC::WaitFlag;
 
 enum class LayOutTypeEnum {
@@ -57,7 +57,7 @@ __aicore__ inline T Align(T a, T b)
     }
     return (a + b - 1) / b * b;
 }
-} // namespace math
+}  // namespace math
 
 template <typename T1, typename T2>
 __aicore__ inline T1 CeilDiv(T1 a, T2 b)
@@ -80,20 +80,13 @@ __aicore__ inline T1 Min(T1 a, T2 b)
     return (a > b) ? b : a;
 }
 
-__aicore__ inline void BoolCopyIn(
-    LocalTensor<uint8_t> &dstTensor,
-    GlobalTensor<uint8_t> &srcTensor,
-    int64_t srcOffset,
-    uint32_t s1Size,
-    uint32_t s2Size,
-    int64_t totalS2Size,
-    int64_t alignedSize = blockBytes)
+__aicore__ inline void BoolCopyIn(LocalTensor<uint8_t> &dstTensor, GlobalTensor<uint8_t> &srcTensor, int64_t srcOffset,
+                                  uint32_t s1Size, uint32_t s2Size, int64_t totalS2Size,
+                                  int64_t alignedSize = blockBytes)
 {
-    uint32_t alignedS2Size =
-        CeilDiv(s2Size, alignedSize) * alignedSize;
+    uint32_t alignedS2Size = CeilDiv(s2Size, alignedSize) * alignedSize;
     uint32_t shapeArray[] = {s1Size, alignedS2Size};
-    dstTensor.SetShapeInfo(
-        ShapeInfo(2, shapeArray, DataFormat::ND));
+    dstTensor.SetShapeInfo(ShapeInfo(2, shapeArray, DataFormat::ND));
     dstTensor.SetSize(s1Size * alignedS2Size);
     DataCopyParams dataCopyParams;
     dataCopyParams.blockCount = s1Size;
@@ -106,25 +99,16 @@ __aicore__ inline void BoolCopyIn(
     if (likely(totalS2Size - s2Size <= UINT16_MAX)) {
         if (totalS2Size % alignedSize == 0) {
             dataCopyParams.blockLen = alignedS2Size / blockBytes;
-            dataCopyParams.srcStride =
-                (totalS2Size - alignedS2Size) / blockBytes;
-            DataCopy(
-                dstTensor,
-                srcTensor[srcOffset],
-                dataCopyParams);
+            dataCopyParams.srcStride = (totalS2Size - alignedS2Size) / blockBytes;
+            DataCopy(dstTensor, srcTensor[srcOffset], dataCopyParams);
         } else {
             dataCopyParams.blockLen = s2Size;
             dataCopyParams.srcStride = totalS2Size - s2Size;
             DataCopyPadParams dataCopyPadParams;
             dataCopyPadParams.isPad = true;
-            dataCopyPadParams.rightPadding =
-                Min(alignedS2Size - s2Size, blockBytes);
+            dataCopyPadParams.rightPadding = Min(alignedS2Size - s2Size, blockBytes);
             dataCopyPadParams.paddingValue = 1;
-            DataCopyPad(
-                dstTensor,
-                srcTensor[srcOffset],
-                dataCopyParams,
-                dataCopyPadParams);
+            DataCopyPad(dstTensor, srcTensor[srcOffset], dataCopyParams, dataCopyPadParams);
         }
     } else {
         DataCopyExtParams extParams;
@@ -134,73 +118,42 @@ __aicore__ inline void BoolCopyIn(
         extParams.srcStride = totalS2Size - s2Size;
         DataCopyPadExtParams<uint8_t> dataCopyPadParams;
         dataCopyPadParams.isPad = true;
-        dataCopyPadParams.rightPadding =
-            Min(alignedS2Size - s2Size, blockBytes);
+        dataCopyPadParams.rightPadding = Min(alignedS2Size - s2Size, blockBytes);
         dataCopyPadParams.paddingValue = 1;
-        DataCopyPad(
-            dstTensor,
-            srcTensor[srcOffset],
-            extParams,
-            dataCopyPadParams);
+        DataCopyPad(dstTensor, srcTensor[srcOffset], extParams, dataCopyPadParams);
     }
 }
 
-__aicore__ inline void Bit2Int8CopyIn(
-    LocalTensor<uint8_t> &dstTensor,
-    GlobalTensor<uint8_t> &srcTensor,
-    int64_t srcOffset,
-    uint32_t batchSize,
-    uint32_t s1BaseSize,
-    uint32_t s2BaseSize,
-    int64_t s2TotalSize,
-    int64_t alignedSize = blockBytes)
+__aicore__ inline void Bit2Int8CopyIn(LocalTensor<uint8_t> &dstTensor, GlobalTensor<uint8_t> &srcTensor,
+                                      int64_t srcOffset, uint32_t batchSize, uint32_t s1BaseSize, uint32_t s2BaseSize,
+                                      int64_t s2TotalSize, int64_t alignedSize = blockBytes)
 {
-    uint32_t alignedS2Size =
-        CeilDiv(s2BaseSize / byteBitRatio, alignedSize) * alignedSize;
-    uint32_t shapeArray[] = {
-        batchSize * s1BaseSize,
-        alignedS2Size
-    };
-    dstTensor.SetShapeInfo(
-        ShapeInfo(2, shapeArray, DataFormat::ND));
+    uint32_t alignedS2Size = CeilDiv(s2BaseSize / byteBitRatio, alignedSize) * alignedSize;
+    uint32_t shapeArray[] = {batchSize * s1BaseSize, alignedS2Size};
+    dstTensor.SetShapeInfo(ShapeInfo(2, shapeArray, DataFormat::ND));
     dstTensor.SetSize(batchSize * s1BaseSize * alignedS2Size);
     DataCopyParams dataCopyParams;
     dataCopyParams.blockCount = batchSize * s1BaseSize;
-    dataCopyParams.blockLen =
-        CeilDiv(s2BaseSize / byteBitRatio, blockBytes);
+    dataCopyParams.blockLen = CeilDiv(s2BaseSize / byteBitRatio, blockBytes);
     dataCopyParams.dstStride = 0;
-    if (s2TotalSize / byteBitRatio % alignedSize == 0 &&
-        s2BaseSize / byteBitRatio % alignedSize == 0) {
-        dataCopyParams.srcStride =
-            (s2TotalSize / byteBitRatio -
-             dataCopyParams.blockLen * blockBytes) /
-            blockBytes;
-        DataCopy(
-            dstTensor,
-            srcTensor[srcOffset / byteBitRatio],
-            dataCopyParams);
+    if (s2TotalSize / byteBitRatio % alignedSize == 0 && s2BaseSize / byteBitRatio % alignedSize == 0) {
+        dataCopyParams.srcStride = (s2TotalSize / byteBitRatio - dataCopyParams.blockLen * blockBytes) / blockBytes;
+        DataCopy(dstTensor, srcTensor[srcOffset / byteBitRatio], dataCopyParams);
     } else {
-        dataCopyParams.blockLen =
-            CeilDiv(s2BaseSize, byteBitRatio);
-        dataCopyParams.srcStride =
-            (s2TotalSize - s2BaseSize) / byteBitRatio;
+        dataCopyParams.blockLen = CeilDiv(s2BaseSize, byteBitRatio);
+        dataCopyParams.srcStride = (s2TotalSize - s2BaseSize) / byteBitRatio;
         DataCopyPadParams dataCopyPadParams;
         dataCopyPadParams.isPad = true;
         dataCopyPadParams.rightPadding = 0;
         dataCopyPadParams.paddingValue = 0;
-        DataCopyPad(
-            dstTensor,
-            srcTensor[srcOffset / byteBitRatio],
-            dataCopyParams,
-            dataCopyPadParams);
+        DataCopyPad(dstTensor, srcTensor[srcOffset / byteBitRatio], dataCopyParams, dataCopyPadParams);
     }
 }
 
 __aicore__ inline int32_t Align(int32_t shape)
 {
     constexpr int32_t alignFactor = 16;
-    return CeilDiv<int32_t, int32_t>(shape, alignFactor) *
-        alignFactor;
+    return CeilDiv<int32_t, int32_t>(shape, alignFactor) * alignFactor;
 }
 
 #endif
