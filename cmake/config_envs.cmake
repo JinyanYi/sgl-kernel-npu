@@ -5,58 +5,42 @@ if (NOT EXISTS ${PYTHON_EXECUTABLE})
     message(FATAL_ERROR "python3 is not found, install python firstly")
 endif ()
 
-# get torch path, torch npu path, pybind11 path via python script
+# Discover package locations without loading the NPU backend on build hosts.
 execute_process(
-        COMMAND ${PYTHON_EXECUTABLE} "-c"
-        "import torch; import torch_npu; import os; import pybind11;
-torch_dir = os.path.realpath(os.path.dirname(torch.__file__));
-torch_npu_dir = os.path.realpath(os.path.dirname(torch_npu.__file__));
-pybind11_dir = os.path.realpath(os.path.dirname(pybind11.__file__));
-abi_enabled=torch.compiled_with_cxx11_abi();
-print(torch_dir, torch_npu_dir, pybind11_dir, abi_enabled, end='');
-quit(0)
-        "
-        RESULT_VARIABLE EXEC_RESULT
-        OUTPUT_VARIABLE OUTPUT_ENV_DEFINES)
+        COMMAND "${CMAKE_COMMAND}" -E env TORCH_DEVICE_BACKEND_AUTOLOAD=0
+        "${PYTHON_EXECUTABLE}" -c [=[
+from importlib.util import find_spec
+from pathlib import Path
+import json
 
-# if failed to run the python script
-if (NOT ${EXEC_RESULT} EQUAL 0)
-    message(FATAL_ERROR "failed to get run python script to get ENVS like TORCH_DIR etc")
-else ()
-    message(STATUS "run python script successfully, output string is [${OUTPUT_ENV_DEFINES}]")
+import torch
+
+
+def package_dir(name):
+    spec = find_spec(name)
+    if spec is None or spec.origin is None:
+        raise ModuleNotFoundError(name)
+    return str(Path(spec.origin).resolve().parent)
+
+
+print(json.dumps({
+    "TORCH_DIR": package_dir("torch"),
+    "TORCH_NPU_DIR": package_dir("torch_npu"),
+    "PYBIND11_DIR": package_dir("pybind11"),
+    "TORCH_ABI_ENABLED": torch.compiled_with_cxx11_abi(),
+}))
+]=]
+        RESULT_VARIABLE EXEC_RESULT
+        OUTPUT_VARIABLE ENV_DEFINES
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+)
+
+if (NOT EXEC_RESULT EQUAL 0)
+    message(FATAL_ERROR "Failed to discover the Torch build environment: ${EXEC_RESULT}")
 endif ()
-
-# extract TORCH_DIR and set it
-execute_process(
-        COMMAND sh -c "echo \"${OUTPUT_ENV_DEFINES}\" | awk '{print $1}'"
-        OUTPUT_VARIABLE TORCH_DIR
-        RESULT_VARIABLE EXEC_RESULT
-        OUTPUT_STRIP_TRAILING_WHITESPACE
-)
-
-# extract TORCH_NPU_DIR and set it
-execute_process(
-        COMMAND sh -c "echo \"${OUTPUT_ENV_DEFINES}\" | awk '{print $2}'"
-        OUTPUT_VARIABLE TORCH_NPU_DIR
-        RESULT_VARIABLE EXEC_RESULT
-        OUTPUT_STRIP_TRAILING_WHITESPACE
-)
-
-# extract PYBIND11_DIR and set it
-execute_process(
-        COMMAND sh -c "echo \"${OUTPUT_ENV_DEFINES}\" | awk '{print $3}'"
-        OUTPUT_VARIABLE PYBIND11_DIR
-        RESULT_VARIABLE EXEC_RESULT
-        OUTPUT_STRIP_TRAILING_WHITESPACE
-)
-
-# extract PYTROCH_ABI and set it
-execute_process(
-        COMMAND sh -c "echo \"${OUTPUT_ENV_DEFINES}\" | awk '{print $4}'"
-        OUTPUT_VARIABLE TORCH_API_ENABLED
-        RESULT_VARIABLE EXEC_RESULT
-        OUTPUT_STRIP_TRAILING_WHITESPACE
-)
+foreach (key TORCH_DIR TORCH_NPU_DIR PYBIND11_DIR TORCH_ABI_ENABLED)
+    string(JSON ${key} GET "${ENV_DEFINES}" ${key})
+endforeach ()
 
 message(STATUS "SOC_VERSION=${SOC_VERSION}")
 message(STATUS "TORCH_DIR=${TORCH_DIR}")
@@ -64,7 +48,7 @@ message(STATUS "TORCH_NPU_DIR=${TORCH_NPU_DIR}")
 message(STATUS "PYBIND11_DIR=${PYBIND11_DIR}")
 
 # set _GLIBCXX_USE_CXX11_ABI
-if (${TORCH_API_ENABLED} STREQUAL "True")
+if (TORCH_ABI_ENABLED)
     add_compile_options(-D_GLIBCXX_USE_CXX11_ABI=1)
     message(STATUS "_GLIBCXX_USE_CXX11_ABI=1")
 else ()
